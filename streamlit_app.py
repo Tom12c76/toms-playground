@@ -1,229 +1,138 @@
-import pandas as pd
-import requests, os
 import streamlit as st
-from streamlit.hello.utils import show_code
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+from streamlit_option_menu import option_menu
+import streamlit.components.v1 as components
+import importlib
+import os
 
+# Custom CSS
+st.markdown("""
+<style>
+    .sidebar .sidebar-content {
+        background-color: #f8f9fa;
+    }
+    .nav-link {
+        padding: 0.5rem 1rem;
+        color: #495057;
+        border-radius: 0.25rem;
+        margin: 0.2rem 0;
+        transition: all 0.2s;
+    }
+    .nav-link:hover {
+        background-color: #e9ecef;
+        color: #212529;
+    }
+    .nav-link.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Define the landing page
+def landing_page():
+    st.title("Welcome to the Portfolio Analysis App")
+    st.write("This is the landing page of the Portfolio Analysis App. Use the sidebar to navigate to different sections.")
+
+# Initialize session state
+if 'page' not in st.session_state:
+    st.session_state['page'] = 'landing'
+
+# Sidebar navigation using option_menu
+with st.sidebar:
+    st.image("https://your-logo-url.com/logo.png", width=50)  # Add your logo
+    st.title("Navigation")
+    
+    selected = option_menu(
+        menu_title=None,
+        options=[
+            "Getting started",
+            "Portfolio hacks",
+            "Machine learning",
+            "AI for reporting"
+        ],
+        icons=['house', 'graph-up', 'robot', 'file-earmark-text'],  # Bootstrap icons
+        menu_icon="cast",
+        default_index=0,
+    )
+    
+    # Submenu based on selection
+    if selected == "Getting started":
+        sub_selected = option_menu(
+            menu_title=None,
+            options=["Retrieve ETF data", "yfinance for stocks", "Ptf calculations"],
+            icons=['database', 'cash-stack', 'calculator'],
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important"},
+                "nav-link": {"font-size": "14px", "text-align": "left", "margin": "0px"}
+            }
+        )
+    
+    elif selected == "Portfolio hacks":
+        sub_selected = option_menu(
+            menu_title=None,
+            options=["Advanced ptf charts", "TC Momentum", "Score to Port",
+                    "Automagic AA", "n Sharpe portfolio", "Alpha Beta revisited",
+                    "Attribution revisited", "Ptf Blind Date"],
+            icons=['bar-chart', 'arrow-up-right', 'stars',
+                   'magic', 'graph-up', 'calculator',
+                   'pie-chart', 'shuffle'],
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important"},
+                "nav-link": {"font-size": "14px", "text-align": "left", "margin": "0px"}
+            }
+        )
+
+# Define the page structure
 pages = {
     "Getting started": [
-        st.Page("app_sections/1_Getting_started/1_Retrieve_ETF_data.py", title="Retrieve ETF Data"),
-        st.Page("app_sections/1_Getting_started/2_yfinance_for_stocks.py", title="YFinance for Stocks"),
-        st.Page("app_sections/1_Getting_started/3_Ptf_calculations.py", title="Portfolio Calculations"),
+        "1_Retrieve_ETF_data",
+        "2_yfinance_for_stocks",
+        "3_Ptf_calculations"
     ],
     "Portfolio hacks": [
-        st.Page("app_sections/2_Portfolio_hacks/1_Advanced_ptf_charts.py", title="Advanced Portfolio Charts"),
-        st.Page("app_sections/2_Portfolio_hacks/2_TC_Momentum.py", title="TC Momentum"),
-        st.Page("app_sections/2_Portfolio_hacks/3_Score_to_Port.py", title="Score to Portfolio"),
-        st.Page("app_sections/2_Portfolio_hacks/4_Automagic_AA.py", title="Automagic Asset Allocation"),
-        st.Page("app_sections/2_Portfolio_hacks/5_n_Sharpe_portfolio.py", title="N Sharpe Portfolio"),
-        st.Page("app_sections/2_Portfolio_hacks/6_Alpha_Beta_revisited.py", title="Alpha Beta Revisited"),
-        st.Page("app_sections/2_Portfolio_hacks/7_Attribution_revisited.py", title="Attribution Revisited"),
-        st.Page("app_sections/2_Portfolio_hacks/8_Ptf_Blind_Date.py", title="Portfolio Blind Date"),
+        "1_Advanced_ptf_charts",
+        "2_TC_Momentum",
+        "3_Score_to_Port",
+        "4_Automagic_AA",
+        "5_n_Sharpe_portfolio",
+        "6_Alpha_Beta_revisited",
+        "7_Attribution_revisited",
+        "8_Ptf_Blind_Date"
     ],
     "Machine learning": [
-        st.Page("app_sections/3_Machine_learning/1_Correlation_Matrix_revisited.py", title="Correlation Matrix Revisited"),
-        st.Page("app_sections/3_Machine_learning/2_Autoencoder_for_Ptf_rebal.py", title="Autoencoder for Portfolio Rebalancing"),
+        "1_Correlation_Matrix_revisited",
+        "2_Autoencoder_for_Ptf_rebal"
     ],
     "AI for reporting": [
-        st.Page("app_sections/4_AI_for_reporting/1_Autogen_HTML_reports.py", title="Autogen HTML Reports"),
-        st.Page("app_sections/4_AI_for_reporting/2_Talk_to_your_portfolio.py", title="Talk to Your Portfolio"),
+        "1_Autogen_HTML_reports",
+        "2_Talk_to_your_portfolio"
     ],
     "VizTrader for Options": [
-        st.Page("app_sections/5_VizTrader_for_Options/1_Adv_option_charts.py", title="Advanced Option Charts"),
-    ],
+        "1_Adv_option_charts"
+    ]
 }
 
-pg = st.navigation(pages)
-pg.run()
+# Sidebar navigation
+st.sidebar.title("Navigation")
+section = st.sidebar.selectbox("Choose a section", list(pages.keys()))
 
-
-
-my_colors = px.colors.qualitative.G10 * 10
-
-def create_portfolio_analysis_plot(ptf: pd.DataFrame) -> go.Figure:
-    """
-    Create a portfolio analysis plot with three subplots:
-    - Bar chart of portfolio weights (top left)
-    - Waterfall chart of cumulative weights (top right)
-    - Box plot of weight distribution (bottom left)
-    
-    Args:
-        ptf (pd.DataFrame): Portfolio dataframe with columns ['Name', 'Weight (%)']
-    
-    Returns:
-        go.Figure: Plotly figure object with configured subplots
-    """
-    # Create subplot layout
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=("Portfolio Weights", "Cumulative Weights", None),
-        specs=[[{}, {}], [{}, None]],
-        vertical_spacing=0.02,
-        horizontal_spacing=0.05,
-        row_heights=[0.9, 0.1]
-    )
-
-    # Add bar chart
-    fig.add_trace(
-        go.Bar(
-            x=ptf['Weight (%)'],
-            y=ptf['Name'],
-            orientation='h',
-            text=ptf['Weight (%)'].round(1).astype(str) + '%',
-            textposition='outside',
-            showlegend=False,
-            marker_color=my_colors[0]
-        ),
-        row=1, col=1
-    )
-
-
-    # Add waterfall chart
-    fig.add_trace(
-        go.Waterfall(
-            x=ptf['Weight (%)'],
-            y=ptf['Name'],
-            orientation='h',
-            text=ptf['Weight (%)'].cumsum().round(1).astype(str) + '%',
-            textposition='outside',
-            measure=['relative'] * len(ptf),
-            connector={"visible": False},
-            showlegend=False,
-            increasing={"marker": {"color": my_colors[0]}},
-        ),
-        row=1, col=2
-    )
-    
-    # Find the index of the first value where cumulative weight exceeds 50%
-    for idx in [ptf['Weight (%)'].cumsum().gt(50).idxmax(),
-                ptf['Weight (%)'].cumsum().gt(80).idxmax()]:
-        fig.add_trace(go.Scatter(
-            x=[0, ptf['Weight (%)'].cumsum().iloc[idx-1]],
-            y=[ptf['Name'].iloc[idx]] * 2,
-            mode='lines+text',
-            line={'color': 'grey', 'width':1.5},
-            text=[f'Top {idx+1} stocks', ''],
-            textposition='top right',
-            showlegend=False
-        ), row=1, col=2)
-
-    # Add box plot
-    fig.add_trace(
-        go.Box(
-            x=ptf['Weight (%)'],
-            name='Weight Distribution',
-            boxpoints='all',
-            showlegend=False,
-            marker_color=my_colors[0]
-        ),
-        row=2, col=1
-    )
-
-    # Update layout
-    fig.update_layout(
-        height=1000,
-        showlegend=False,
-        yaxis={'autorange': 'reversed'},
-        yaxis2={'autorange': 'reversed'},
-    )
-
-    # Sync axes
-    fig.update_xaxes(row=1, col=1, showticklabels=False)
-    fig.update_xaxes(row=1, col=2, showticklabels=False)
-    fig.update_xaxes(matches='x', row=2, col=1, showticklabels=False)
-
-    fig.update_yaxes(matches='y', row=1, col=2, showticklabels=False)
-
-    return fig
-
-def get_indu():
-
-    # URL of the file to download
-    CIND_url = (
-        'https://www.blackrock.com/uk/intermediaries/products/253713/'
-        'ishares-dow-jones-industrial-average-ucits-etf/1472631233320.ajax'
-        '?fileType=csv&fileName=CIND_holdings&dataType=fund'
-    )
-
-    # Download the file
-    response = requests.get(CIND_url)
-    response.raise_for_status()  # Check if the request was successful
-
-    # Create the data directory if it doesn't exist
-    os.makedirs('data', exist_ok=True)
-
-    # Save the file locally
-    with open('data/CIND.csv', 'wb') as file:
-        file.write(response.content)
-
-    # Load portfolio file from local directory
-    portfolio_file_path = 'data/CIND.csv'  # Update with your CSV file name
-
-    # Read the portfolio CSV file
-    as_of_dt = pd.read_csv(portfolio_file_path, nrows=1).columns[1]
-    as_of_dt = pd.to_datetime(as_of_dt).date()
-    ptf = pd.read_csv(portfolio_file_path, skiprows=2, thousands=',', decimal='.')
-    ptf['As Of Date'] = as_of_dt
-    ptf = ptf.dropna(subset=['Name'])
-    ptf = ptf[ptf['Asset Class'] == 'Equity']
-    ptf['Weight (%)'] = ptf['Market Value'] / ptf['Market Value'].sum() * 100
-    ptf = ptf.drop('Notional Value', axis=1)
-    ptf = ptf.sort_values('Weight (%)', ascending=False)
-    
-    st.dataframe(
-        ptf.set_index('Ticker'),
-        hide_index=False,
-        column_config={
-            "Weight (%)": st.column_config.NumberColumn(
-                format="%.2f%%"
-            ),
-            "Market Value": st.column_config.NumberColumn(
-                format="%.0f"
-            )
-        },
-        height=500,  # Set a fixed height
-        use_container_width=True  # Make dataframe use full width
-    )
-
-    st.info(
-        """
-        The portfolio consists of 30 stocks. The weight of each stock is determined by the market value of the stock.
-        The stock with the highest market value has the highest weight in the portfolio.
-        """
-    )
-
-    # Usage in main code:
-    fig = create_portfolio_analysis_plot(ptf)
-    st.plotly_chart(fig)
-
-    return None
-
-st.set_page_config(page_title="First things first", page_icon="📹")
-
-st.markdown("## Retrieve the Portfolio")
-st.sidebar.header("Animation Demo")
-
-st.info(
-    """
-To kick off things we need to define a portfolio to work with.
-I like to use the
-**iShares Dow Jones Industrial Average UCITS ETF (CIND)**
-as it's a simple and well-known portfolio. It only holds 30 stocks
-and the price history of the underlying stocks is easy to retrieve.
-Remember that the Dow Industrial Average holds an equal amount of shares of each stock!
-This means that the stock with the highest price will have the
-highest weight in the portfolio.
-To replicate the portfolio we can buy either 1 or 10 or 100 shares
-of each stock and we're good to go. Or we can just use the amounts that
-are in the actual ETF.
-"""
-)
-
-get_indu()
-
-show_code(get_indu)
-
-# Store filtered portfolio in session state for later use
-st.session_state['ptf'] = ptf
+if section:
+    page = st.sidebar.selectbox("Choose a page", pages[section])
+    if page:
+        # Convert section and page to path
+        module_path = f"app_sections.{section.replace(' ', '_')}.{page}"
+        try:
+            # Import and run the selected page
+            module = importlib.import_module(module_path)
+            if hasattr(module, 'main'):
+                module.main()
+            else:
+                st.error(f"No main() function found in {module_path}")
+        except Exception as e:
+            st.error(f"Error loading page: {str(e)}")
+else:
+    landing_page()
