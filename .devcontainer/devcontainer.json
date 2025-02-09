@@ -21,7 +21,7 @@
   },
   "postCreateCommand": "export PYTHONDONTWRITEBYTECODE=1 && export BROWSER=none",
   // "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; pip3 install --user streamlit; echo '✅ Packages installed and Requirements met'",
-  "postAttachCommand": "source .venv/bin/activate && streamlit run Welcome.py",
+  "postAttachCommand": "source .venv/bin/activate && streamlit run streamlit_app.py",
   "portsAttributes": {
     "8501": {
       "label": "Application",
