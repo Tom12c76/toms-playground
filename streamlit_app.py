@@ -1,8 +1,9 @@
+import sys
+sys.dont_write_bytecode = True
+
 import streamlit as st
 from streamlit_option_menu import option_menu
-import streamlit.components.v1 as components
 import importlib
-import os
 
 # Custom CSS
 st.markdown("""
@@ -28,34 +29,30 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Define the landing page
-def landing_page():
-    st.title("Welcome to the Portfolio Analysis App")
-    st.write("This is the landing page of the Portfolio Analysis App. Use the sidebar to navigate to different sections.")
-
-# Initialize session state
-if 'page' not in st.session_state:
-    st.session_state['page'] = 'landing'
-
 # Sidebar navigation using option_menu
 with st.sidebar:
-    st.image("https://your-logo-url.com/logo.png", width=50)  # Add your logo
     st.title("Navigation")
     
     selected = option_menu(
         menu_title=None,
         options=[
+            "Welcome to my playground",
             "Getting started",
             "Portfolio hacks",
             "Machine learning",
             "AI for reporting"
         ],
-        icons=['house', 'graph-up', 'robot', 'file-earmark-text'],  # Bootstrap icons
+        icons=['house', 'gear', 'graph-up', 'robot', 'file-earmark-text'],
         menu_icon="cast",
         default_index=0,
+        styles={
+            "container": {"padding": "0!important"},
+            "nav-link": {"font-size": "14px", "text-align": "left", "margin": "0px"}
+        }
     )
     
     # Submenu based on selection
+    sub_selected = None
     if selected == "Getting started":
         sub_selected = option_menu(
             menu_title=None,
@@ -68,13 +65,12 @@ with st.sidebar:
                 "nav-link": {"font-size": "14px", "text-align": "left", "margin": "0px"}
             }
         )
-    
     elif selected == "Portfolio hacks":
         sub_selected = option_menu(
             menu_title=None,
             options=["Advanced ptf charts", "TC Momentum", "Score to Port",
-                    "Automagic AA", "n Sharpe portfolio", "Alpha Beta revisited",
-                    "Attribution revisited", "Ptf Blind Date"],
+                     "Automagic AA", "n Sharpe portfolio", "Alpha Beta revisited",
+                     "Attribution revisited", "Ptf Blind Date"],
             icons=['bar-chart', 'arrow-up-right', 'stars',
                    'magic', 'graph-up', 'calculator',
                    'pie-chart', 'shuffle'],
@@ -88,51 +84,40 @@ with st.sidebar:
 
 # Define the page structure
 pages = {
-    "Getting started": [
-        "1_Retrieve_ETF_data",
-        "2_yfinance_for_stocks",
-        "3_Ptf_calculations"
-    ],
-    "Portfolio hacks": [
-        "1_Advanced_ptf_charts",
-        "2_TC_Momentum",
-        "3_Score_to_Port",
-        "4_Automagic_AA",
-        "5_n_Sharpe_portfolio",
-        "6_Alpha_Beta_revisited",
-        "7_Attribution_revisited",
-        "8_Ptf_Blind_Date"
-    ],
-    "Machine learning": [
-        "1_Correlation_Matrix_revisited",
-        "2_Autoencoder_for_Ptf_rebal"
-    ],
-    "AI for reporting": [
-        "1_Autogen_HTML_reports",
-        "2_Talk_to_your_portfolio"
-    ],
-    "VizTrader for Options": [
-        "1_Adv_option_charts"
-    ]
+    "Welcome to my playground": "content.welcome",
+    "Getting started": {
+        "Retrieve ETF data": "content.getting_started.retrieve_etf_data",
+        "yfinance for stocks": "content.getting_started.yfinance_for_stocks",
+        "Ptf calculations": "content.getting_started.ptf_calculations"
+    },
+    "Portfolio hacks": {
+        "Advanced ptf charts": "content.portfolio_hacks.advanced_ptf_charts",
+        "TC Momentum": "content.portfolio_hacks.tc_momentum",
+        "Score to Port": "content.portfolio_hacks.score_to_port",
+        "Automagic AA": "content.portfolio_hacks.automagic_aa",
+        "n Sharpe portfolio": "content.portfolio_hacks.n_sharpe_portfolio",
+        "Alpha Beta revisited": "content.portfolio_hacks.alpha_beta_revisited",
+        "Attribution revisited": "content.portfolio_hacks.attribution_revisited",
+        "Ptf Blind Date": "content.portfolio_hacks.ptf_blind_date"
+    },
+    "Machine learning": {
+        "Correlation Matrix revisited": "content.machine_learning.correlation_matrix_revisited",
+        "Autoencoder for Ptf rebal": "content.machine_learning.autoencoder_for_ptf_rebal"
+    },
+    "AI for reporting": {
+        "Autogen HTML reports": "content.ai_for_reporting.autogen_html_reports",
+        "Talk to your portfolio": "content.ai_for_reporting.talk_to_your_portfolio"
+    }
 }
 
-# Sidebar navigation
-st.sidebar.title("Navigation")
-section = st.sidebar.selectbox("Choose a section", list(pages.keys()))
-
-if section:
-    page = st.sidebar.selectbox("Choose a page", pages[section])
-    if page:
-        # Convert section and page to path
-        module_path = f"app_sections.{section.replace(' ', '_')}.{page}"
-        try:
-            # Import and run the selected page
-            module = importlib.import_module(module_path)
-            if hasattr(module, 'main'):
-                module.main()
-            else:
-                st.error(f"No main() function found in {module_path}")
-        except Exception as e:
-            st.error(f"Error loading page: {str(e)}")
-else:
-    landing_page()
+# Load the appropriate page content
+if selected in pages:
+    if isinstance(pages[selected], dict) and sub_selected:
+        module_name = pages[selected].get(sub_selected)
+    else:
+        module_name = pages[selected]
+    
+    if module_name:
+        module = importlib.import_module(module_name)
+        if hasattr(module, 'main'):
+            module.main()
