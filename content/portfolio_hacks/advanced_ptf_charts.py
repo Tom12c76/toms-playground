@@ -1,5 +1,5 @@
 import streamlit as st
 
-def advanced_charts():
+def main():
     st.title("Advanced Portfolio Charts")
     st.write("This is the content of the Advanced Portfolio Charts page.")

@@ -69,7 +69,7 @@ with st.sidebar:
         sub_selected = option_menu(
             menu_title=None,
             options=["Advanced ptf charts", "TC Momentum", "Score to Port",
-                     "Automagic AA", "n Sharpe portfolio", "Alpha Beta revisited",
+                     "Automagic AA", "p Sharpe portfolio", "Alpha Beta revisited",
                      "Attribution revisited", "Ptf Blind Date"],
             icons=['bar-chart', 'arrow-up-right', 'stars',
                    'magic', 'graph-up', 'calculator',
@@ -95,7 +95,7 @@ pages = {
         "TC Momentum": "content.portfolio_hacks.tc_momentum",
         "Score to Port": "content.portfolio_hacks.score_to_port",
         "Automagic AA": "content.portfolio_hacks.automagic_aa",
-        "n Sharpe portfolio": "content.portfolio_hacks.n_sharpe_portfolio",
+        "p Sharpe portfolio": "content.portfolio_hacks.p_sharpe_portfolio",
         "Alpha Beta revisited": "content.portfolio_hacks.alpha_beta_revisited",
         "Attribution revisited": "content.portfolio_hacks.attribution_revisited",
         "Ptf Blind Date": "content.portfolio_hacks.ptf_blind_date"
