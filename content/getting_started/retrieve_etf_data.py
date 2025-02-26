@@ -22,7 +22,11 @@ def get_etf_ptf(url):
     ptf = ptf.dropna(subset=['Name'])
     ptf = ptf[ptf['Asset Class'] == 'Equity']
 
-    
+    # Override the number of shares with 100 each
+    ptf['Shares'] = 100
+
+    # Recalculate the "Market Value" using "Price"
+    ptf['Market Value'] = ptf['Shares'] * ptf['Price']
 
     ptf['Weight (%)'] = ptf['Market Value'] / ptf['Market Value'].sum() * 100
     ptf = ptf.drop('Notional Value', axis=1)
@@ -54,7 +58,10 @@ def main():
 
     # Display the portfolio data if available in session state
     if 'ptf' in st.session_state:
-        st.write(st.session_state['ptf'])
+        ptf = st.session_state['ptf']
+        st.write(ptf)
+        total_market_value = ptf['Market Value'].sum()
+        st.metric(label="Total Market Value", value=f"$ {total_market_value:,.0f}")
     else:
         st.info("No portfolio data in memory")
 

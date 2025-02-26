@@ -45,8 +45,8 @@ def main():
             st.session_state['df_hist'] = df_hist
             st.rerun()
     else:
-        # Button to update the adjusted close prices
-        if st.button("Update"):
+        # Button to refresh the adjusted close prices
+        if st.button("Refresh"):
             df_hist = get_adj_close_prices(tickers)
             st.session_state['df_hist'] = df_hist
         df_hist = st.session_state['df_hist']
