@@ -86,6 +86,10 @@ def main():
         tall = perform_calculations(ptf, df_hist)
         # tall.to_excel('tall.xlsx', engine='openpyxl')
 
+        # Store the tall DataFrame in session state for use in other pages
+        st.session_state['tall'] = tall
+        st.success("Portfolio calculations completed and data stored in session state.")
+
         st.subheader("Cumulative Returns by Ticker")
         # Bar chart of cumulative returns
         # Create chart data from last day's returns sorted from largest to smallest
