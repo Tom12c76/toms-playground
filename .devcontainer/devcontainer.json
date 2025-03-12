@@ -16,6 +16,13 @@
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance"
+      ],
+      "keybindings": [
+        {
+          "key": "ctrl+numpad_divide",
+          "command": "editor.action.commentLine",
+          "when": "editorTextFocus && !editorReadonly"
+        }
       ]
     }
   },

@@ -81,6 +81,31 @@ with st.sidebar:
                 "nav-link": {"font-size": "14px", "text-align": "left", "margin": "0px"}
             }
         )
+        # now let's create a sub_selected for the Machine Learning Section:
+    elif selected == "Machine learning":
+        sub_selected = option_menu(
+            menu_title=None,
+            options=["Correlation Matrix revisited", "Autoencoder for Ptf rebal"],
+            icons=['matrix', 'shuffle'],
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important"},
+                "nav-link": {"font-size": "14px", "text-align": "left", "margin": "0px"}
+            }
+        )
+    elif selected == "AI for reporting":
+        sub_selected = option_menu(
+            menu_title=None,
+            options=["Autogen HTML reports", "Talk to your portfolio"],
+            icons=['file-earmark-text', 'chat-dots'],
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important"},
+                "nav-link": {"font-size": "14px", "text-align": "left", "margin": "0px"}
+            }
+        )
 
 # Define the page structure
 pages = {
