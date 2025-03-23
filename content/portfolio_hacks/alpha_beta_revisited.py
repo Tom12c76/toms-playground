@@ -47,10 +47,11 @@ def calculate_regression_metrics(tall):
             model = sm.OLS(y, X).fit()
             
             # Extract regression statistics
-            alpha = model.params['const'] * 252  # Annualized alpha
+            alpha = model.params['const'] * len(y)  # Annualized alpha
             beta = model.params['portfolio']
             r_squared = model.rsquared
-            p_value = model.pvalues['const']
+            correl_r = np.sqrt(model.rsquared)
+            p_value = model.f_pvalue
             significant = p_value < 0.05
             
             # Performance attribution
@@ -92,8 +93,8 @@ def calculate_regression_metrics(tall):
                 'Ticker': ticker,
                 'Alpha': alpha,
                 'Beta': beta,
-                'R-squared': r_squared,
-                'Variance Explained': r_squared * 100,  # In percentage
+                'Correlation R': correl_r,
+                'Variance Explained R2': r_squared,
                 'Significant': significant,
                 'Perf_Portfolio': perf_from_portfolio,
                 'Perf_Beta': perf_from_beta,
@@ -339,7 +340,7 @@ def main():
         if df_regression is not None and not df_regression.empty:
             # Display the regression metrics
             st.write("### Regression Metrics")
-            st.dataframe(df_regression[['Alpha', 'Beta', 'R-squared', 'Variance Explained', 'Significant']])
+            st.dataframe(df_regression[['Alpha', 'Beta', 'Correlation R', 'Variance Explained R2', 'Significant']])
             
             # Display the performance attribution
             st.write("### Performance Attribution")

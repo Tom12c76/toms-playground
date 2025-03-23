@@ -97,8 +97,8 @@ with st.sidebar:
     elif selected == "AI for reporting":
         sub_selected = option_menu(
             menu_title=None,
-            options=["Autogen HTML reports", "Talk to your portfolio"],
-            icons=['file-earmark-text', 'chat-dots'],
+            options=["News Summaries", "Autogen HTML reports", "Talk to your portfolio"],
+            icons=['file-earmark-text', 'chat-dots', 'newspaper'],
             menu_icon="cast",
             default_index=0,
             styles={
@@ -130,8 +130,9 @@ pages = {
         "Autoencoder for Ptf rebal": "content.machine_learning.autoencoder_for_ptf_rebal"
     },
     "AI for reporting": {
+        "News Summaries": "content.ai_for_reporting.news_summaries",
         "Autogen HTML reports": "content.ai_for_reporting.autogen_html_reports",
-        "Talk to your portfolio": "content.ai_for_reporting.talk_to_your_portfolio"
+        "Talk to your portfolio": "content.ai_for_reporting.talk_to_your_portfolio",
     }
 }
 
