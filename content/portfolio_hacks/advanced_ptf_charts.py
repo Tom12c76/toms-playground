@@ -1,7 +1,8 @@
 import streamlit as st
+import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import pandas as pd
 from plotly.subplots import make_subplots
 
 def create_stock_comparison_figure(tall, ptf, ticker):
@@ -37,7 +38,7 @@ def create_stock_comparison_figure(tall, ptf, ticker):
     
     ptf_tr = tall_ptf['cumret'].iloc[-1]
     ptf_vol = tall_ptf['logret'].std() * (252 ** 0.5)
-    
+
     # Calculate outperformance (ticker cumret - portfolio cumret)
     ticker_cumret = tall_ticker['cumret']
     ptf_cumret = tall_ptf['cumret']
@@ -51,7 +52,11 @@ def create_stock_comparison_figure(tall, ptf, ticker):
     # Find the minimum and maximum excess returns to fix the plot range
     cumret = tall['cumret'].reset_index().pivot(index='Date', columns='Ticker', values='cumret')   
     excess_returns = cumret.sub(cumret['Portfolio'], axis=0).drop('Portfolio', axis=1)
-    st.write(excess_returns.min().min(), excess_returns.max().max())
+
+    logret = tall['logret'].reset_index().pivot(index='Date', columns='Ticker', values='logret')
+    vol = logret.std() * (252 ** 0.5)
+    # let's calculate the total return from the log returns for all tickers
+    tr = np.exp(logret.sum())-1
     
     fig = make_subplots(rows=2, cols=3, 
                         shared_yaxes=True,
@@ -118,6 +123,17 @@ def create_stock_comparison_figure(tall, ptf, ticker):
                   textposition='top center'),
         row=2, col=3
     )
+    
+    # Risk-Return Scatterplot - Add all tickers
+    fig.add_trace(
+        go.Scatter(x=vol.drop([ticker, 'Portfolio']), 
+                  y=tr.drop([ticker, 'Portfolio']), 
+                  mode='markers', 
+                  marker=dict(color='grey', size=8, opacity=0.4),),
+                #   text=[ticker_name, 'Portfolio'],
+                #   textposition='top center'),
+        row=2, col=3
+    )
 
     # Reverse the x-axis for the third subplot and set minimum value to 0
     fig.update_xaxes(autorange='reversed', row=2, col=3, rangemode='tozero', tickformat=".1%")
@@ -165,9 +181,13 @@ def main():
     # Get all available sectors from the portfolio data
     available_sectors = sorted(ptf['Sector'].unique().tolist())
     
-    # Create a multi-select for sectors
-    selected_sectors = st.multiselect("Filter by sector", available_sectors)
+    # Create two columns for filters
+    col1, col2 = st.columns(2)
     
+    # Create a multi-select for sectors in the first column
+    with col1:
+        selected_sectors = st.multiselect("Filter by sector", available_sectors)
+        
     # Filter tickers by selected sectors if any are selected
     if selected_sectors:
         filtered_ptf = ptf[ptf['Sector'].isin(selected_sectors)]
@@ -176,8 +196,10 @@ def main():
         # If no sectors selected, show all tickers
         available_tickers = tall.index.levels[0].unique().tolist()
     
-    # Create a dropdown to select the ticker from the filtered list
-    ticker = st.selectbox("Select a ticker", available_tickers)
+    # Create a dropdown to select the ticker from the filtered list in the second column
+    with col2:
+        ticker = st.selectbox("Select a ticker", available_tickers)
+    
 
     # Create the comparison figure using the dedicated function with simplified parameters
     fig = create_stock_comparison_figure(tall, ptf, ticker)
