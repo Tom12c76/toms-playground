@@ -1,0 +1,12 @@
+{
+    "sessions": {
+        "default": "platform.rdp",
+        "platform": {
+            "rdp": {
+                "app_key": "cf2eaf5e3b3c42adba08b3c5c2002b6ced1e77d7",
+                "username": "thomas.castri@db.com",
+                "password": "Tom_465689"
+            }
+        }
+    }
+}

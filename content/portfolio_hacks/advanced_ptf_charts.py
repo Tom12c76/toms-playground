@@ -113,27 +113,38 @@ def create_stock_comparison_figure(tall, ptf, ticker):
         row=2, col=2
     )
 
-    # Risk-Return Scatterplot - Add both ticker and portfolio benchmark
-    fig.add_trace(
-        go.Scatter(x=[ticker_vol, ptf_vol], 
-                  y=[ticker_tr, ptf_tr], 
-                  mode='markers+text', 
-                  marker=dict(color=[ticker_color, ptf_color], size=[12, 10]),
-                  text=[ticker_name, 'Portfolio'],
-                  textposition='top center'),
-        row=2, col=3
-    )
-    
     # Risk-Return Scatterplot - Add all tickers
     fig.add_trace(
         go.Scatter(x=vol.drop([ticker, 'Portfolio']), 
                   y=tr.drop([ticker, 'Portfolio']), 
                   mode='markers', 
-                  marker=dict(color='grey', size=8, opacity=0.4),),
+                  marker=dict(color=ptf_color, size=8, opacity=0.4),),
                 #   text=[ticker_name, 'Portfolio'],
                 #   textposition='top center'),
         row=2, col=3
     )
+
+    # Risk-Return Scatterplot - Add both ticker and portfolio benchmark
+    fig.add_trace(
+        go.Scatter(x=[ticker_vol, ptf_vol], 
+                  y=[ticker_tr, ptf_tr], 
+                  mode='markers+text', 
+                  marker=dict(
+                      color=[ticker_color, ptf_color], 
+                      size=[12, 10],
+                      symbol=['circle', 'square']
+                  ),
+                  text=[ticker, ''],
+                  textposition='top center'),
+        row=2, col=3
+    )
+    
+    # Add a vertical line for the portfolio benchmark
+    fig.add_vline(x=ptf_vol, line=dict(color=ptf_color, width=0.75, dash='dash'), row=2, col=3)
+    # Add a horizontal line for the portfolio benchmark
+    fig.add_hline(y=ptf_tr, line=dict(color=ptf_color, width=0.75, dash='dash'), row=2, col=3)
+
+
 
     # Reverse the x-axis for the third subplot and set minimum value to 0
     fig.update_xaxes(autorange='reversed', row=2, col=3, rangemode='tozero', tickformat=".1%")
