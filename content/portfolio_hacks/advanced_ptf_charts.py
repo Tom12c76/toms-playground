@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 
+
 def create_stock_comparison_figure(tall, ptf, ticker):
     """
     Create a figure comparing a specific ticker to the portfolio benchmark.
@@ -58,10 +59,50 @@ def create_stock_comparison_figure(tall, ptf, ticker):
     # let's calculate the total return from the log returns for all tickers
     tr = np.exp(logret.sum())-1
     
+    # Calculate the correlation between ticker and portfolio
+    corr = logret[ticker].corr(logret['Portfolio'])
+
+    # Calculate the final weight of the ticker in the portfolio
+    ticker_in_ptf_final_weight = tall_ticker.iloc[-1]['value']/tall_ptf.iloc[-1]['value']
+    # how much of ticker do i need to go short to get the portfolio performance without the ticker?
+    short_ticker_weight = ticker_in_ptf_final_weight/(1 - ticker_in_ptf_final_weight)
+    
+    # Calculate efficient frontier points for different weight combinations
+    # Extend range to include negative weights (short positions) and ensure zero weight is included
+    weights = np.linspace(-short_ticker_weight, 1, 30)
+    if 0 not in weights:
+        weights = np.sort(np.append(weights, 0))
+    ef = pd.DataFrame(weights, columns=['w_ticker'])
+
+    ef['w_portfolio'] = 1 - ef['w_ticker']
+    ef['v_ticker'] = ticker_vol
+    ef['v_portfolio'] = ptf_vol
+    # let's add a column that shows the allocation to ticker in the portfolio
+    ef['w_ticker_in_ptf'] = ef['w_ticker'] + ef['w_portfolio'] * ticker_in_ptf_final_weight
+    
+    # Calculate portfolio variance and resulting risk/return for each weight combination
+    # Portfolio variance = w1σ1^2 + w2σ2^2 + 2w1w2Cov
+    # Cov = p(1,2)σ1σ2, where p(1,2)=correlation
+    ef['v_p'] = np.sqrt(
+        ef.w_ticker * ef.v_ticker ** 2 + 
+        ef.w_portfolio * ef.v_portfolio ** 2 + 
+        2 * ef.w_ticker * ef.w_portfolio * corr * ef.v_ticker * ef.v_portfolio
+    )
+
+    # Calculate expected return for each weight combination
+    ef['r_p'] = ef.w_ticker * ticker_tr + ef.w_portfolio * ptf_tr
+    
+    # # Calculate Sharpe ratio (or risk-adjusted return)
+    # ef['rar'] = ef['r_p'] / ef['v_p']
+    
+    # # Find the optimal allocation (highest Sharpe ratio)
+    # optimal_idx = ef['rar'].idxmax()
+    # optimal_alloc = ef.iloc[optimal_idx]
+    
     fig = make_subplots(rows=2, cols=3, 
                         shared_yaxes=True,
                         shared_xaxes=True, 
-                        subplot_titles=("Outperformance", "XS", "", "Cumulative Returns", "TR", "Risk-Return"),
+                        subplot_titles=("Excess Return", "XS", "", "Total Return", "TR", "Risk-Return"),
                         column_widths=[3, 0.5, 1],
                         row_heights=[1, 2],
                         vertical_spacing=0.05
@@ -118,9 +159,10 @@ def create_stock_comparison_figure(tall, ptf, ticker):
         go.Scatter(x=vol.drop([ticker, 'Portfolio']), 
                   y=tr.drop([ticker, 'Portfolio']), 
                   mode='markers', 
-                  marker=dict(color=ptf_color, size=8, opacity=0.4),),
-                #   text=[ticker_name, 'Portfolio'],
-                #   textposition='top center'),
+                  name='',
+                  marker=dict(color=ptf_color, size=8, opacity=0.4),
+                  text=vol.drop([ticker, 'Portfolio']).index,
+                  hovertemplate='%{text}<br>Vol: %{x:.1%}<br>Return: %{y:.1%}'),
         row=2, col=3
     )
 
@@ -139,12 +181,22 @@ def create_stock_comparison_figure(tall, ptf, ticker):
         row=2, col=3
     )
     
+    # Add efficient frontier line showing different weight combinations
+    fig.add_trace(
+        go.Scatter(x=ef['v_p'],
+                  y=ef['r_p'],
+                  mode='lines',
+                  name='Efficient Frontier',
+                  line=dict(color=ticker_color, dash='dot', width=1),
+                  hovertemplate='Risk: %{x:.1%}<br>Return: %{y:.1%}<br>Weight: %{customdata:.1%}<extra></extra>',
+                  customdata=ef['w_ticker']),
+        row=2, col=3
+    )
+    
     # Add a vertical line for the portfolio benchmark
     fig.add_vline(x=ptf_vol, line=dict(color=ptf_color, width=0.75, dash='dash'), row=2, col=3)
     # Add a horizontal line for the portfolio benchmark
     fig.add_hline(y=ptf_tr, line=dict(color=ptf_color, width=0.75, dash='dash'), row=2, col=3)
-
-
 
     # Reverse the x-axis for the third subplot and set minimum value to 0
     fig.update_xaxes(autorange='reversed', row=2, col=3, rangemode='tozero', tickformat=".1%")
@@ -167,14 +219,14 @@ def create_stock_comparison_figure(tall, ptf, ticker):
         showlegend=False,
         height=600, 
         width=1200, 
-        title_text=f"{ticker_name} - {ticker_sector}",
+        title_text=f"[{ticker}] {ticker_name} - {ticker_sector}",
         template="plotly_white"
     )
     
     return fig
 
 def main():
-    
+
     st.subheader("Advanced Portfolio Charts")
 
     if 'ptf' in st.session_state:
