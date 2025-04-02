@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import altair as alt
 import inspect
+from io import BytesIO
 
 def perform_calculations(ptf, df_hist):
     """
@@ -84,7 +85,6 @@ def main():
 
     if has_all_data:
         tall = perform_calculations(ptf, df_hist)
-        # tall.to_excel('tall.xlsx', engine='openpyxl')
 
         # Store the tall DataFrame in session state for use in other pages
         st.session_state['tall'] = tall
@@ -134,12 +134,15 @@ def main():
         # Line chart showing return evolution over time
         st.subheader("Portfolio Performance Over Time")
         st.line_chart(tall['cumret'].unstack(level=0))
-        # Add checkbox to view the perform_calculations function
+        
+
+    if st.button("Download Excel",help="Click to download the portfolio data as an Excel file."):
+        tall['close'].unstack(level=0).to_excel("close.xlsx", engine='openpyxl')
     
+    # Add checkbox to view the perform_calculations function
     if st.checkbox('View perform_calculations() function'):
         source_code = inspect.getsource(perform_calculations)
         st.code(source_code, language='python')
-        
         st.write("below you can see the resulting *tall* dataframe")
         st.dataframe(tall)
 

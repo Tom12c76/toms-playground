@@ -56,6 +56,7 @@ def create_stock_comparison_figure(tall, ptf, ticker):
 
     logret = tall['logret'].reset_index().pivot(index='Date', columns='Ticker', values='logret')
     vol = logret.std() * (252 ** 0.5)
+
     # let's calculate the total return from the log returns for all tickers
     tr = np.exp(logret.sum())-1
     
@@ -92,13 +93,15 @@ def create_stock_comparison_figure(tall, ptf, ticker):
     # Calculate expected return for each weight combination
     ef['r_p'] = ef.w_ticker * ticker_tr + ef.w_portfolio * ptf_tr
     
-    # # Calculate Sharpe ratio (or risk-adjusted return)
-    # ef['rar'] = ef['r_p'] / ef['v_p']
-    
-    # # Find the optimal allocation (highest Sharpe ratio)
-    # optimal_idx = ef['rar'].idxmax()
-    # optimal_alloc = ef.iloc[optimal_idx]
-    
+    # Find the point where total weight in ticker is zero
+    zero_exposure_idx = np.abs(ef['w_ticker_in_ptf']).idxmin()
+    zero_exposure_point = ef.iloc[zero_exposure_idx]
+
+    # Create a color scheme for the plot
+    ticker_color = '#1f77b4'  # Color for selected ticker
+    ptf_color = '#A9A9A9'     # Grey color for portfolio benchmark
+
+    # Create a figure with subplots        
     fig = make_subplots(rows=2, cols=3, 
                         shared_yaxes=True,
                         shared_xaxes=True, 
@@ -107,9 +110,6 @@ def create_stock_comparison_figure(tall, ptf, ticker):
                         row_heights=[1, 2],
                         vertical_spacing=0.05
                         )
-
-    ticker_color = '#1f77b4'  # Color for selected ticker
-    ptf_color = '#A9A9A9'     # Grey color for portfolio benchmark
     
     # Outperformance - Add outperformance line
     fig.add_trace(
@@ -118,17 +118,26 @@ def create_stock_comparison_figure(tall, ptf, ticker):
         row=1, col=1
     )
 
-    # Last Cumulative Return - Add both ticker and portfolio benchmark
+    # Outperformance - Add outperformance bar chart
     fig.add_trace(
-        go.Bar(x=[ticker], 
-              y=[excess_return], 
-              name='XS Return', 
-              marker=dict(color=[ticker_color]), 
-              text=[f"{excess_return:.1%}"], 
-              textposition='auto'),
+        go.Bar(
+            x=[ticker],
+            y=[excess_return],
+            name='XS Return',
+            marker_color=ticker_color,
+            text=f"{excess_return:.1%}",
+            textposition='auto'
+        ),
         row=1, col=2
     )
-    
+     
+    # Cumulative Returns - Add portfolio benchmark line
+    fig.add_trace(
+        go.Scatter(x=tall_ptf['cumret'].index, y=tall_ptf['cumret'], 
+                  mode='lines', name='Portfolio', line=dict(color=ptf_color)),
+        row=2, col=1
+    )
+   
     # Cumulative Returns - Add ticker line
     fig.add_trace(
         go.Scatter(x=tall_ticker['cumret'].index, y=tall_ticker['cumret'], 
@@ -136,13 +145,6 @@ def create_stock_comparison_figure(tall, ptf, ticker):
         row=2, col=1
     )
     
-    # Cumulative Returns - Add portfolio benchmark line
-    fig.add_trace(
-        go.Scatter(x=tall_ptf['cumret'].index, y=tall_ptf['cumret'], 
-                  mode='lines', name='Portfolio', line=dict(color=ptf_color)),
-        row=2, col=1
-    )
-
     # Last Cumulative Return - Add both ticker and portfolio benchmark
     fig.add_trace(
         go.Bar(x=[ticker, 'Ptf'], 
@@ -165,6 +167,42 @@ def create_stock_comparison_figure(tall, ptf, ticker):
                   hovertemplate='%{text}<br>Vol: %{x:.1%}<br>Return: %{y:.1%}'),
         row=2, col=3
     )
+        
+    # Add a vertical line for the portfolio benchmark
+    fig.add_vline(x=ptf_vol, line=dict(color=ptf_color, width=0.75, dash='dash'), row=2, col=3)
+    # Add a horizontal line for the portfolio benchmark
+    fig.add_hline(y=ptf_tr, line=dict(color=ptf_color, width=0.75, dash='dash'), row=2, col=3) 
+    
+    # Add efficient frontier line showing different weight combinations
+    fig.add_trace(
+        go.Scatter(x=ef['v_p'],
+                  y=ef['r_p'],
+                  mode='lines',
+                  name='Efficient Frontier',
+                  line=dict(color=ticker_color, dash='dot', width=1),
+                  hovertemplate='Risk: %{x:.1%}<br>Return: %{y:.1%}<br>Weight: %{customdata:.1%}<extra></extra>',
+                  customdata=ef['w_ticker']),
+        row=2, col=3
+    )
+
+    # Add a simple vertical line marker at the point of zero exposure
+    fig.add_trace(
+        go.Scatter(
+            x=[zero_exposure_point['v_p']],
+            y=[zero_exposure_point['r_p']],
+            mode='markers',
+            marker=dict(
+                symbol='line-ns',
+                size=10,
+                line=dict(width=2, color=ticker_color)
+            ),
+            name='Zero Exposure',
+            showlegend=False,
+            hoverinfo='text',
+            hovertext=f"Zero Exposure: {zero_exposure_point['v_p']:.1%}"
+        ),
+        row=2, col=3
+    )
 
     # Risk-Return Scatterplot - Add both ticker and portfolio benchmark
     fig.add_trace(
@@ -181,26 +219,8 @@ def create_stock_comparison_figure(tall, ptf, ticker):
         row=2, col=3
     )
     
-    # Add efficient frontier line showing different weight combinations
-    fig.add_trace(
-        go.Scatter(x=ef['v_p'],
-                  y=ef['r_p'],
-                  mode='lines',
-                  name='Efficient Frontier',
-                  line=dict(color=ticker_color, dash='dot', width=1),
-                  hovertemplate='Risk: %{x:.1%}<br>Return: %{y:.1%}<br>Weight: %{customdata:.1%}<extra></extra>',
-                  customdata=ef['w_ticker']),
-        row=2, col=3
-    )
-    
-    # Add a vertical line for the portfolio benchmark
-    fig.add_vline(x=ptf_vol, line=dict(color=ptf_color, width=0.75, dash='dash'), row=2, col=3)
-    # Add a horizontal line for the portfolio benchmark
-    fig.add_hline(y=ptf_tr, line=dict(color=ptf_color, width=0.75, dash='dash'), row=2, col=3)
-
-    # Reverse the x-axis for the third subplot and set minimum value to 0
+    # Update x-axis and y-axis properties
     fig.update_xaxes(autorange='reversed', row=2, col=3, rangemode='tozero', tickformat=".1%")
-
     fig.update_yaxes(row=1, col=1, tickformat=".1%", title="XS Returns", 
                      range=[excess_returns.min().min(), excess_returns.max().max()])
     fig.update_yaxes(row=2, col=1, tickformat=".1%", title="Cumulative Returns", 
