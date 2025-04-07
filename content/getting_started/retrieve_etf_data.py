@@ -23,14 +23,25 @@ def get_etf_ptf(url):
     ptf = ptf.dropna(subset=['Name'])
     ptf = ptf[ptf['Asset Class'] == 'Equity']
 
-    # Override the number of shares with 100 each
-    ptf['Shares'] = 100
+    # Convert numerical columns to float
+    for col in ['Price', 'Market Value']:
+        if col in ptf.columns:
+            ptf[col] = pd.to_numeric(ptf[col], errors='coerce')
+    
+    # Set exactly 100 shares for each stock
+    ptf['Shares'] = 100.0
 
-    # Recalculate the "Market Value" using "Price"
+    # Recalculate the "Market Value" using "Price" and 100 shares
     ptf['Market Value'] = ptf['Shares'] * ptf['Price']
 
+    # Calculate weights based on the new market values
     ptf['Weight (%)'] = ptf['Market Value'] / ptf['Market Value'].sum() * 100
-    ptf = ptf.drop('Notional Value', axis=1)
+    
+    # Drop unnecessary columns
+    if 'Notional Value' in ptf.columns:
+        ptf = ptf.drop('Notional Value', axis=1)
+        
+    # Sort and reset index
     ptf = ptf.sort_values('Market Value', ascending=False).reset_index(drop=True)
     
     return ptf
@@ -63,40 +74,20 @@ def get_spy_etf(url):
     # Add As Of Date column
     spyder['As Of Date'] = as_of_dt
     
-    # Convert Weight column to float and filter rows with Weight > 0
-    if 'Weight' in spyder.columns:
-        spyder['Weight'] = pd.to_numeric(spyder['Weight'].str.replace(',', ''), errors='coerce')
-        spyder = spyder[spyder['Weight'] > 0]
-    elif 'Weight (%)' in spyder.columns:
-        spyder['Weight (%)'] = pd.to_numeric(spyder['Weight (%)'].str.replace(',', ''), errors='coerce')
-        spyder = spyder[spyder['Weight (%)'] > 0]
+    # Print column names and data types for debugging
+    st.write("SPY DataFrame columns:", spyder.columns.tolist())
+    st.write("SPY DataFrame data types:", spyder.dtypes)
     
     # Drop rows with Ticker = "-"
     spyder = spyder[spyder['Ticker'] != "-"]
-
-    # Standardize column names if needed
-    if 'Weight' in spyder.columns:
-        spyder.rename(columns={'Weight': 'Weight (%)'}, inplace=True)
+    # Drop rows with Ticker = None
+    spyder = spyder[spyder['Ticker'].notna()]  
+    # Now recalculate the weight after dropping the rows
+    spyder['Weight'] = spyder['Weight']/spyder['Weight'].sum()
     
-    # Ensure we have price and shares data
-    if 'Price' not in spyder.columns:
-        spyder['Price'] = spyder['Market Value'] / spyder['Shares Held'] if 'Shares Held' in spyder.columns and 'Market Value' in spyder.columns else 0
-    
-    if 'Shares Held' in spyder.columns and 'Shares' not in spyder.columns:
-        spyder.rename(columns={'Shares Held': 'Shares'}, inplace=True)
-    
-    # Override the number of shares with 100 each for consistency
-    spyder['Shares'] = 100
-    
-    # Recalculate the "Market Value" using "Price"
-    spyder['Market Value'] = spyder['Shares'] * spyder['Price']
-    
-    # Recalculate weights
-    spyder['Weight (%)'] = spyder['Market Value'] / spyder['Market Value'].sum() * 100
-    
-    # Sort and reset index
-    spyder = spyder.sort_values('Market Value', ascending=False).reset_index(drop=True)
-    
+    # Sort by weight descending
+    spyder = spyder.sort_values('Weight', ascending=False).reset_index(drop=True)
+    st.write(spyder)
     return spyder
 
 def get_sector_etf(ticker):
@@ -135,12 +126,29 @@ def get_sector_etf(ticker):
         
         # Convert Weight column to float and filter rows with Weight > 0
         if 'Weight' in sector_etf.columns:
-            sector_etf['Weight'] = pd.to_numeric(sector_etf['Weight'], errors='coerce')
+            # Handle both string and numeric formats
+            if sector_etf['Weight'].dtype == 'object':
+                sector_etf['Weight'] = pd.to_numeric(sector_etf['Weight'].astype(str).str.replace(',', ''), errors='coerce')
+            else:
+                sector_etf['Weight'] = pd.to_numeric(sector_etf['Weight'], errors='coerce')
             sector_etf = sector_etf[sector_etf['Weight'] > 0]
             sector_etf.rename(columns={'Weight': 'Weight (%)'}, inplace=True)
         elif 'Weight (%)' in sector_etf.columns:
-            sector_etf['Weight (%)'] = pd.to_numeric(sector_etf['Weight (%)'], errors='coerce')
+            # Handle both string and numeric formats
+            if sector_etf['Weight (%)'].dtype == 'object':
+                sector_etf['Weight (%)'] = pd.to_numeric(sector_etf['Weight (%)'].astype(str).str.replace(',', ''), errors='coerce')
+            else:
+                sector_etf['Weight (%)'] = pd.to_numeric(sector_etf['Weight (%)'], errors='coerce')
             sector_etf = sector_etf[sector_etf['Weight (%)'] > 0]
+        
+        # Convert numerical columns to float
+        for col in ['Price', 'Shares Held', 'Market Value', 'Shares']:
+            if col in sector_etf.columns:
+                # Handle both string and numeric formats
+                if sector_etf[col].dtype == 'object':
+                    sector_etf[col] = pd.to_numeric(sector_etf[col].astype(str).str.replace(',', ''), errors='coerce')
+                else:
+                    sector_etf[col] = pd.to_numeric(sector_etf[col], errors='coerce')
         
         # Drop rows with Ticker = "-" if any
         sector_etf = sector_etf[sector_etf['Ticker'] != "-"]
@@ -191,14 +199,23 @@ def download_all_sector_etfs():
 def map_spy_to_sectors(spy_df, sector_holdings):
     """
     Map SPY holdings to their corresponding sectors based on sector ETF holdings
-    """
-    # Create a mapping of tickers to sectors
-    ticker_to_sector = {}
-    for _, row in sector_holdings.iterrows():
-        ticker_to_sector[row['Ticker']] = row['Sector ETF']
     
-    # Add sector information to SPY holdings
-    spy_df['Sector ETF'] = spy_df['Ticker'].map(ticker_to_sector)
+    This function creates a consolidated mapping of all stocks to their
+    sector ETFs first, then applies this mapping to the SPY holdings.
+    """
+    # Create a comprehensive mapping of tickers to sectors from all sector ETF holdings
+    ticker_to_sector_map = {}
+    
+    # Process all sector holdings to create the mapping
+    for _, row in sector_holdings.iterrows():
+        ticker = row['Ticker']
+        sector_etf = row['Sector ETF']
+        # If there are multiple sectors for a ticker, we'll use the latest one
+        # (could be enhanced to use the one with highest weight if needed)
+        ticker_to_sector_map[ticker] = sector_etf
+    
+    # Apply the mapping to SPY holdings
+    spy_df['Sector ETF'] = spy_df['Ticker'].map(ticker_to_sector_map)
     
     # For any missing sectors, try to fill with sector information if available in SPY data
     if 'Sector' in spy_df.columns:
@@ -206,36 +223,61 @@ def map_spy_to_sectors(spy_df, sector_holdings):
         sector_name_to_etf = {
             'Utilities': 'XLU',
             'Information Technology': 'XLK',
+            'Technology': 'XLK',
             'Real Estate': 'XLRE',
             'Materials': 'XLB',
             'Industrials': 'XLI',
             'Health Care': 'XLV',
+            'Healthcare': 'XLV',
             'Financials': 'XLF',
+            'Financial': 'XLF',
             'Energy': 'XLE',
             'Consumer Staples': 'XLP',
             'Consumer Discretionary': 'XLY',
-            'Communication Services': 'XLC'
+            'Communication Services': 'XLC',
+            'Communications': 'XLC',
+            'Telecommunication Services': 'XLC'
         }
         
-        # Fill missing Sector ETF values
+        # Fill missing Sector ETF values using the sector name mapping
         missing_sector_mask = spy_df['Sector ETF'].isna()
         spy_df.loc[missing_sector_mask, 'Sector ETF'] = spy_df.loc[missing_sector_mask, 'Sector'].map(sector_name_to_etf)
+    
+    # Ensure there are no NaN values in Weight (%) column
+    if 'Weight (%)' in spy_df.columns:
+        spy_df['Weight (%)'] = pd.to_numeric(spy_df['Weight (%)'], errors='coerce').fillna(0.0)
+    elif 'Weight' in spy_df.columns:
+        spy_df['Weight (%)'] = pd.to_numeric(spy_df['Weight'], errors='coerce').fillna(0.0)
+    
+    # Count how many stocks were successfully mapped to sectors
+    mapped_count = spy_df['Sector ETF'].notna().sum()
+    total_count = len(spy_df)
+    mapping_percentage = (mapped_count / total_count) * 100 if total_count > 0 else 0
+    st.info(f"Sector mapping complete: {mapped_count} out of {total_count} stocks mapped ({mapping_percentage:.1f}%)")
     
     return spy_df
 
 def create_synthetic_sector_portfolio(spy_df):
     """
     Create a synthetic portfolio using sector ETFs instead of individual stocks
+    based on the SPY benchmark weights
     """
     if 'Sector ETF' not in spy_df.columns or spy_df['Sector ETF'].isna().all():
         st.error("Cannot create synthetic portfolio: No sector information available")
         return pd.DataFrame()
     
+    # Ensure Weight (%) is properly converted to float
+    spy_df['Weight (%)'] = pd.to_numeric(spy_df['Weight (%)'], errors='coerce').fillna(0.0)
+    
     # Group by Sector ETF and sum the weights
     sector_weights = spy_df.groupby('Sector ETF')['Weight (%)'].sum().reset_index()
     
+    # Filter out any rows with NaN as Sector ETF (these couldn't be mapped to a sector)
+    sector_weights = sector_weights.dropna(subset=['Sector ETF'])
+    
     # Normalize the weights to make sure they sum to 100%
-    sector_weights['Weight (%)'] = sector_weights['Weight (%)'] / sector_weights['Weight (%)'].sum() * 100
+    total_weight = sector_weights['Weight (%)'].sum()
+    sector_weights['Weight (%)'] = sector_weights['Weight (%)'] / total_weight * 100
     
     # Sort by weight descending
     sector_weights = sector_weights.sort_values('Weight (%)', ascending=False).reset_index(drop=True)
@@ -258,10 +300,14 @@ def create_synthetic_sector_portfolio(spy_df):
     sector_weights['Sector Name'] = sector_weights['Sector ETF'].map(sector_names)
     
     # Calculate shares and market value (assuming $100,000 portfolio and $100/share price for simplicity)
-    total_investment = 100000
-    sector_weights['Price'] = 100  # Simplified assumption
-    sector_weights['Market Value'] = sector_weights['Weight (%)'] / 100 * total_investment
+    total_investment = 100000.0
+    sector_weights['Price'] = 100.0  # Simplified assumption
+    sector_weights['Market Value'] = sector_weights['Weight (%)'] / 100.0 * total_investment
     sector_weights['Shares'] = sector_weights['Market Value'] / sector_weights['Price']
+    
+    # Ensure all numerical columns are float
+    for col in ['Weight (%)', 'Price', 'Market Value', 'Shares']:
+        sector_weights[col] = pd.to_numeric(sector_weights[col], errors='coerce')
     
     # Rearrange columns for better readability
     sector_weights = sector_weights[['Sector ETF', 'Sector Name', 'Weight (%)', 'Price', 'Shares', 'Market Value']]
@@ -326,8 +372,11 @@ def main():
             if 'spyder' in st.session_state:
                 spyder = st.session_state['spyder']
                 st.write(spyder.head(10))  # Show only top 10 for cleaner display
-                total_market_value = spyder['Market Value'].sum()
-                st.metric(label="Total Market Value", value=f"$ {total_market_value:,.0f}")
+                
+                # Display total weight (should be 100%)
+                total_weight = spyder['Weight'].sum() * 100  # Convert to percentage
+                st.metric(label="Total Weight", value=f"{total_weight:.2f}%")
+                
                 st.write(f"Total holdings: {len(spyder)} stocks")
                 if st.checkbox('Show full SPY portfolio'):
                     st.write(spyder)
