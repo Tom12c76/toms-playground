@@ -334,7 +334,7 @@ def main():
     st.write(f"Main Portfolio: [iShares Dow Jones Industrial Average UCITS ETF]({url_CIND})")
     st.write(f"Benchmark: [SPDR S&P 500 ETF Trust (SPY)]({url_SPY})")
     
-    tabs = st.tabs(["ETF Data", "Sector Analysis", "Synthetic Portfolio"])
+    tabs = st.tabs(["ETF Data", "Sector Analysis", "Synthetic Portfolio", "Code Snippets"])
     
     with tabs[0]:
         if st.button('Fetch portfolio and benchmark data'):
@@ -350,38 +350,30 @@ def main():
                 st.success('Both portfolios successfully downloaded!')
 
         # Display the portfolio data if available in session state
-        col1, col2 = st.columns(2)
-        
         # Main Portfolio (CIND)
-        with col1:
-            st.subheader("Main Portfolio (CIND)")
-            if 'ptf' in st.session_state:
-                ptf = st.session_state['ptf']
-                st.write(ptf.head(10))  # Show only top 10 for cleaner display
-                total_market_value = ptf['Market Value'].sum()
-                st.metric(label="Total Market Value", value=f"$ {total_market_value:,.0f}")
-                st.write(f"Total holdings: {len(ptf)} stocks")
-                if st.checkbox('Show full CIND portfolio'):
-                    st.write(ptf)
-            else:
-                st.info("No main portfolio data loaded yet")
+        st.subheader("Main Portfolio (CIND)")
+        if 'ptf' in st.session_state:
+            ptf = st.session_state['ptf']
+            st.dataframe(ptf)  # Show only top 10 for cleaner display
+            total_market_value = ptf['Market Value'].sum()
+            st.metric(label="Total Market Value", value=f"$ {total_market_value:,.0f}")
+            st.write(f"Total holdings: {len(ptf)} stocks")
+        else:
+            st.info("No main portfolio data loaded yet")
         
         # Benchmark Portfolio (SPY)
-        with col2:
-            st.subheader("Benchmark Portfolio (SPY)")
-            if 'spyder' in st.session_state:
-                spyder = st.session_state['spyder']
-                st.write(spyder.head(10))  # Show only top 10 for cleaner display
-                
-                # Display total weight (should be 100%)
-                total_weight = spyder['Weight'].sum() * 100  # Convert to percentage
-                st.metric(label="Total Weight", value=f"{total_weight:.2f}%")
-                
-                st.write(f"Total holdings: {len(spyder)} stocks")
-                if st.checkbox('Show full SPY portfolio'):
-                    st.write(spyder)
-            else:
-                st.info("No benchmark data loaded yet")
+        st.subheader("Benchmark Portfolio (SPY)")
+        if 'spyder' in st.session_state:
+            spyder = st.session_state['spyder']
+            st.dataframe(spyder)  # Show only top 10 for cleaner display
+            
+            # Display total weight (should be 100%)
+            total_weight = spyder['Weight'].sum() * 100  # Convert to percentage
+            st.metric(label="Total Weight", value=f"{total_weight:.2f}%")
+            
+            st.write(f"Total holdings: {len(spyder)} stocks")
+        else:
+            st.info("No benchmark data loaded yet")
     
     with tabs[1]:
         st.subheader("Sector ETF Analysis")
@@ -401,22 +393,6 @@ def main():
                 
                 st.success(f"Downloaded data for all sector ETFs with {len(sector_holdings)} total holdings")
         
-        # Display sector data if available
-        if 'all_sectors' in st.session_state:
-            sector_options = list(st.session_state['all_sectors'].keys())
-            selected_sector = st.selectbox('Select Sector ETF to view', sector_options)
-            
-            if selected_sector:
-                sector_data = st.session_state['all_sectors'][selected_sector]
-                st.write(f"Showing top 10 holdings for {selected_sector}:")
-                st.write(sector_data.head(10))
-                
-                total_holdings = len(sector_data)
-                st.metric("Total Holdings", total_holdings)
-                
-                if st.checkbox(f'Show full {selected_sector} portfolio'):
-                    st.write(sector_data)
-        
         # Display SPY with sector mappings
         if 'spy_with_sectors' in st.session_state:
             st.subheader("SPY Holdings with Sector Mappings")
@@ -426,16 +402,22 @@ def main():
             sector_distribution = spy_sectors.groupby('Sector ETF')['Weight (%)'].sum().sort_values(ascending=False)
             st.bar_chart(sector_distribution)
             
-            # Show top holdings with their sectors
-            st.write("Top SPY holdings with their sector ETFs:")
-            st.write(spy_sectors[['Ticker', 'Name', 'Weight (%)', 'Sector ETF']].head(10))
-            
             mapped_count = spy_sectors['Sector ETF'].notna().sum()
             total_count = len(spy_sectors)
             st.write(f"Successfully mapped {mapped_count} out of {total_count} holdings to sectors ({mapped_count/total_count:.1%})")
+        
+        # Display sector data if available
+        if 'all_sectors' in st.session_state:
+            sector_options = list(st.session_state['all_sectors'].keys())
+            selected_sector = st.selectbox('Select Sector ETF to view', sector_options)
             
-            if st.checkbox('Show full SPY with sectors'):
-                st.write(spy_sectors)
+            if selected_sector:
+                sector_data = st.session_state['all_sectors'][selected_sector]
+                st.write(f"Showing holdings for {selected_sector}:")
+                st.dataframe(sector_data)
+                
+                total_holdings = len(sector_data)
+                st.metric("Total Holdings", total_holdings)
     
     with tabs[2]:
         st.subheader("Synthetic Sector ETF Portfolio")
@@ -469,8 +451,9 @@ def main():
         else:
             st.info("Please download sector data in the Sector Analysis tab first")
 
-    # Function code viewers
-    with st.expander("View ETF data functions"):
+    with tabs[3]:
+        st.subheader("ETF Data Function Code Snippets")
+        
         if st.checkbox('View get_etf_ptf function (CIND)'):
             source_code = inspect.getsource(get_etf_ptf)
             st.code(source_code, language='python')

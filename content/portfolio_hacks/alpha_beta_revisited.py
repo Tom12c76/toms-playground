@@ -160,7 +160,7 @@ def fig_ab(ptf, tall, ticker):
     ticker_color = '#1f77b4'  # Color for selected ticker
     ptf_color = '#A9A9A9'     # Grey color for portfolio benchmark
     
-    st.write(tall_ticker['logret'])
+    # st.write(tall_ticker['logret'])
 
     # Outperformance - Add outperformance line
     fig.add_trace(

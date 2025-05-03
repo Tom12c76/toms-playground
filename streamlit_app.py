@@ -85,8 +85,8 @@ with st.sidebar:
     elif selected == "Machine learning":
         sub_selected = option_menu(
             menu_title=None,
-            options=["Correlation Matrix revisited", "Autoencoder for Ptf rebal"],
-            icons=['matrix', 'shuffle'],
+            options=["Correlation Matrix revisited", "PCA analysis", "Autoencoder for Ptf rebal"],
+            icons=['bi-grid-3x3-gap', 'graph-up', 'shuffle'],
             menu_icon="cast",
             default_index=0,
             styles={
@@ -98,7 +98,7 @@ with st.sidebar:
         sub_selected = option_menu(
             menu_title=None,
             options=["News Summaries", "Autogen HTML reports", "Talk to your portfolio"],
-            icons=['file-earmark-text', 'chat-dots', 'newspaper'],
+            icons=['file-earmark-text', 'chat-dots', 'bi-megaphone'],
             menu_icon="cast",
             default_index=0,
             styles={
@@ -127,7 +127,8 @@ pages = {
     },
     "Machine learning": {
         "Correlation Matrix revisited": "content.machine_learning.correlation_matrix_revisited",
-        "Autoencoder for Ptf rebal": "content.machine_learning.autoencoder_for_ptf_rebal"
+        "Autoencoder for Ptf rebal": "content.machine_learning.autoencoder_for_ptf_rebal",
+        "PCA analysis": "content.machine_learning.pca_analysis"
     },
     "AI for reporting": {
         "News Summaries": "content.ai_for_reporting.news_summaries",
