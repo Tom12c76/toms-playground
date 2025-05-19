@@ -73,11 +73,7 @@ def get_spy_etf(url):
     
     # Add As Of Date column
     spyder['As Of Date'] = as_of_dt
-    
-    # Print column names and data types for debugging
-    st.write("SPY DataFrame columns:", spyder.columns.tolist())
-    st.write("SPY DataFrame data types:", spyder.dtypes)
-    
+       
     # Drop rows with Ticker = "-"
     spyder = spyder[spyder['Ticker'] != "-"]
     # Drop rows with Ticker = None
@@ -87,7 +83,6 @@ def get_spy_etf(url):
     
     # Sort by weight descending
     spyder = spyder.sort_values('Weight', ascending=False).reset_index(drop=True)
-    st.write(spyder)
     return spyder
 
 def get_sector_etf(ticker):
@@ -354,7 +349,7 @@ def main():
         st.subheader("Main Portfolio (CIND)")
         if 'ptf' in st.session_state:
             ptf = st.session_state['ptf']
-            st.dataframe(ptf)  # Show only top 10 for cleaner display
+            st.dataframe(ptf)
             total_market_value = ptf['Market Value'].sum()
             st.metric(label="Total Market Value", value=f"$ {total_market_value:,.0f}")
             st.write(f"Total holdings: {len(ptf)} stocks")
