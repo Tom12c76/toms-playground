@@ -6,6 +6,9 @@ import os
 
 def get_etf_ptf(url):
     filename = './data/CIND_holdings.csv'
+    
+    # Create data directory if it doesn't exist
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
 
     # Download the file
     response = requests.get(url)

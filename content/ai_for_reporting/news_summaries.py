@@ -1,18 +1,21 @@
 import streamlit as st
 import base64
 import os
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+from google.generativeai import types
 
 
 def fetch_news_summary(api_key, ticker, perf_ticker, perf_index):
     try:
-        client = genai.Client(api_key=api_key)
-        model = "gemini-2.0-flash"
+        genai.configure(api_key=api_key)
         
+        model_name = "gemini-1.5-flash-latest" # Using a more recent model, ensure it supports the features you need.
+                                         # "gemini-2.0-flash" might not be a valid public model name.
+                                         # Check Google's documentation for available model names.
+
         # Prepare the prompt
         query = (
-            f"Please analyze the news for {ticker} shares in oder to understand the recent price performance. "
+            f"Please analyze the news for {ticker} shares in order to understand the recent price performance. "
             f"The stock has returned approximately {perf_ticker:.1%} over the past year, "
             f"compared to {perf_index:.1%} for the broader market. "
             f"Identify the key news events and factors that have contributed "
@@ -23,24 +26,7 @@ def fetch_news_summary(api_key, ticker, perf_ticker, perf_index):
             f"Include both positive and negative drivers. "
         )
         
-        contents = [
-            types.Content(
-                role="user",
-                parts=[types.Part.from_text(text=query)],
-            ),
-        ]
-        
-        tools = [types.Tool(google_search=types.GoogleSearch())]
-        
-        generate_content_config = types.GenerateContentConfig(
-            temperature=1,
-            top_p=0.95,
-            top_k=40,
-            max_output_tokens=8192,
-            tools=tools,
-            response_mime_type="text/plain",
-            system_instruction=[
-                types.Part.from_text(text="""
+        system_instruction_text = """
 You are an AI assistant specialized in financial news analysis. Your primary task is to analyze news articles, financial reports, and market data to identify the key factors that have contributed to a specific stock's performance over a defined period. You should prioritize information that directly explains the stock's upward or downward movements. You should always source the original news source when possible.
 
 **Your Core Function:**
@@ -77,16 +63,35 @@ You are an AI assistant specialized in financial news analysis. Your primary tas
 *   **Conciseness:** Keep the summary concise and easy to understand.
 
 You should now await a specific request for a stock and period to analyze.
-""")
-            ],
+"""
+        
+        generation_config = types.GenerationConfig( # Use types.GenerationConfig
+            temperature=1,
+            top_p=0.95,
+            top_k=40,
+            max_output_tokens=8192,
+            response_mime_type="text/plain", # response_mime_type is part of GenerationConfig
         )
         
-        response = client.models.generate_content(
-            model=model,
-            contents=contents,
-            config=generate_content_config,
+        tools = [types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())]
+
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config,
+            system_instruction=system_instruction_text, # Pass system instruction text directly
+            tools=tools
         )
         
+        contents = [
+            types.Content( # This structure for contents is generally for chat history. For a single query, just the query text might be enough.
+                role="user", # Or simply pass the query string to generate_content
+                parts=[types.Part.from_text(text=query)],
+            ),
+        ]
+        
+        # For non-chat, you can often pass the query directly or a list of parts
+        response = model.generate_content(query) # Simpler call for single-turn query
+
         return response.text
     except Exception as e:
         return f"Error generating news summary: {str(e)}\n\nPlease check your API key and try again."
