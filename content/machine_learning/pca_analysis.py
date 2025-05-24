@@ -78,7 +78,6 @@ def main():
     st.pyplot(cluster_grid.figure)
 
     # Use PC1 and PC2 from factor_loadings to create an interactive Plotly scatter plot
-    st.write("Scatter Plot of PC1 vs PC2 (color-coded by PC3):")
     import plotly.express as px
     
     # Create a DataFrame with the necessary data for plotting

@@ -2,21 +2,21 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import date, timedelta
+from curl_cffi import requests  # NEW IMPORT
 
 def get_adj_close_prices(tickers):
-    
-    # Download historical market data for the given tickers from Yahoo Finance
-    data = yf.download(tickers, 
-                       period="1y", 
-                       auto_adjust=True, 
-                       ignore_tz=True)
-    
-    # Keep only the date part without the hours
+    # Use curl_cffi requests to impersonate Chrome
+    session = requests.Session(impersonate="chrome")
+    # Download historical market data for the given tickers from Yahoo Finance using the custom session
+    data = yf.download(
+        tickers,
+        period="1y",
+        auto_adjust=True,
+        ignore_tz=True,
+        session=session  # Pass the impersonated session
+    )
     data.index = data.index.date
-
-    # Extract the adjusted close prices from the downloaded data
     adj_close_prices = data['Close']
-    
     return adj_close_prices
 
 def main():
