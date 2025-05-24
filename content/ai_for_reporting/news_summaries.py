@@ -2,32 +2,40 @@ import streamlit as st
 import base64
 import os
 import google.generativeai as genai
-from google.generativeai import types
+import google.api_core.exceptions # For more specific error handling
 
 
-def fetch_news_summary(api_key, ticker, perf_ticker, perf_index):
+def fetch_news_summary_stream(api_key, ticker, perf_ticker, perf_index):
     try:
         genai.configure(api_key=api_key)
-        
-        model_name = "gemini-1.5-flash-latest" # Using a more recent model, ensure it supports the features you need.
-                                         # "gemini-2.0-flash" might not be a valid public model name.
-                                         # Check Google's documentation for available model names.
+    except Exception as e:
+        yield f"Failed to configure Gemini API: {str(e)}\nPlease check your API key."
+        return
 
-        # Prepare the prompt
-        query = (
-            f"Please analyze the news for {ticker} shares in order to understand the recent price performance. "
-            f"The stock has returned approximately {perf_ticker:.1%} over the past year, "
-            f"compared to {perf_index:.1%} for the broader market. "
-            f"Identify the key news events and factors that have contributed "
-            f"to this performance. Please source your answers when possible to the company or "
-            f"news outlets with some reference to the original news source. "
-            f"Focus on financial news and analysis. "
-            f"Please provide a concise summary of the key factors that have influenced the stock's performance. "
-            f"Include both positive and negative drivers. "
-        )
-        
-        system_instruction_text = """
-You are an AI assistant specialized in financial news analysis. Your primary task is to analyze news articles, financial reports, and market data to identify the key factors that have contributed to a specific stock's performance over a defined period. You should prioritize information that directly explains the stock's upward or downward movements. You should always source the original news source when possible.
+    model_name = "gemini-2.0-flash" 
+    
+    query = (
+        f"Please analyze the news for {ticker} shares in order to understand the recent price performance. "
+        f"The stock has returned approximately {perf_ticker:.1%} over the past year, "
+        f"compared to {perf_index:.1%} for the broader market. "
+        f"Identify the key news events and factors that have contributed "
+        f"to this performance. Please source your answers when possible to the company or "
+        f"news outlets with some reference to the original news source. "
+        f"Focus on financial news and analysis. "
+        f"Please provide a concise summary of the key factors that have influenced the stock's performance. "
+        f"Include both positive and negative drivers."
+    )
+    
+    contents_for_request = [
+        genai.Content( # Changed from types.Content
+            role="user",
+            parts=[genai.Part.from_text(text=query)], # Changed from types.Part
+        ),
+    ]
+    
+    tools = [genai.Tool(google_search=genai.GoogleSearch())] # Changed from types.Tool and types.GoogleSearch
+    
+    system_instruction_text = """You are an AI assistant specialized in financial news analysis. Your primary task is to analyze news articles, financial reports, and market data to identify the key factors that have contributed to a specific stock's performance over a defined period. You should prioritize information that directly explains the stock's upward or downward movements. You should always source the original news source when possible.
 
 **Your Core Function:**
 
@@ -62,39 +70,44 @@ You are an AI assistant specialized in financial news analysis. Your primary tas
 *   **Relevance:** Focus on information that is directly relevant to the stock's performance.
 *   **Conciseness:** Keep the summary concise and easy to understand.
 
-You should now await a specific request for a stock and period to analyze.
-"""
+You should now await a specific request for a stock and period to analyze."""
+
+    generation_and_tool_config = genai.GenerateContentConfig( # Changed from types.GenerateContentConfig
+        tools=tools,
+        response_mime_type="text/plain",
+        system_instruction=[ 
+            genai.Part.from_text(text=system_instruction_text) # Changed from types.Part
+        ] 
+    )
+
+    try:
+        model_instance = genai.GenerativeModel(model_name=model_name)
         
-        generation_config = types.GenerationConfig( # Use types.GenerationConfig
-            temperature=1,
-            top_p=0.95,
-            top_k=40,
-            max_output_tokens=8192,
-            response_mime_type="text/plain", # response_mime_type is part of GenerationConfig
+        response_chunks = model_instance.generate_content(
+            contents=contents_for_request,
+            generation_config=generation_and_tool_config,
+            stream=True
         )
         
-        tools = [types.Tool(google_search_retrieval=types.GoogleSearchRetrieval())]
+        summary = ""
+        for chunk in response_chunks:
+            try:
+                if hasattr(chunk, 'text') and chunk.text:
+                    summary += chunk.text
+                yield summary
+            except AttributeError:
+                continue
+            except Exception as e_chunk:
+                continue
 
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            generation_config=generation_config,
-            system_instruction=system_instruction_text, # Pass system instruction text directly
-            tools=tools
-        )
-        
-        contents = [
-            types.Content( # This structure for contents is generally for chat history. For a single query, just the query text might be enough.
-                role="user", # Or simply pass the query string to generate_content
-                parts=[types.Part.from_text(text=query)],
-            ),
-        ]
-        
-        # For non-chat, you can often pass the query directly or a list of parts
-        response = model.generate_content(query) # Simpler call for single-turn query
-
-        return response.text
+    except google.api_core.exceptions.PermissionDenied as e:
+        yield f"Gemini API Permission Denied: {str(e)}\n\nPlease check your API key, ensure the Gemini API is enabled for your Google Cloud project, and that billing is active."
+    except google.api_core.exceptions.InvalidArgument as e:
+        yield f"Gemini API Invalid Argument: {str(e)}\nThis could be due to an incorrect model name ('{model_name}') or other request parameters. Please verify."
+    except google.api_core.exceptions.GoogleAPIError as e:
+        yield f"Gemini API Error: {str(e)}"
     except Exception as e:
-        return f"Error generating news summary: {str(e)}\n\nPlease check your API key and try again."
+        yield f"Error generating news summary: {str(e)}\n\nPlease check your API key, model name ('{model_name}'), and network connection."
 
 
 def main():
@@ -147,20 +160,30 @@ def main():
             selected_ticker = t
             break
     
-    perf_ticker = tall.loc[selected_ticker, 'cumret'].iloc[-1]
-    perf_index = tall.loc['Portfolio', 'cumret'].iloc[-1]
+    if selected_ticker: # Ensure selected_ticker is not None before accessing tall
+        perf_ticker = tall.loc[selected_ticker, 'cumret'].iloc[-1]
+        perf_index = tall.loc['Portfolio', 'cumret'].iloc[-1]
+    else:
+        # Handle the case where no stock is selected or found, perhaps by disabling the button or showing a message
+        perf_ticker = 0 # Default or placeholder
+        perf_index = 0  # Default or placeholder
+
 
     if st.button("Fetch News"):
         if not api_key:
             st.error("Please enter your Gemini API key in the sidebar.")
         elif selected_ticker:
             with st.spinner(f"Fetching news for {selected_ticker}..."):
-                news_summary = fetch_news_summary(api_key, selected_ticker, perf_ticker, perf_index)
                 st.subheader(f"News Summary for {selected_ticker}")
-                st.markdown(news_summary)
+                summary_placeholder = st.empty() 
+                displayed_summary = ""
+                for summary_chunk in fetch_news_summary_stream(api_key, selected_ticker, perf_ticker, perf_index):
+                    displayed_summary = summary_chunk 
+                    summary_placeholder.markdown(displayed_summary) 
         else:
             st.error("Please select a stock first.")
 
 
 if __name__ == "__main__":
     main()
+
