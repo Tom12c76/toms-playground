@@ -1,41 +1,39 @@
 import streamlit as st
 import base64
 import os
-import google.generativeai as genai
-import google.api_core.exceptions # For more specific error handling
+from google import genai
+from google.genai import types
 
 
-def fetch_news_summary_stream(api_key, ticker, perf_ticker, perf_index):
-    try:
-        genai.configure(api_key=api_key)
-    except Exception as e:
-        yield f"Failed to configure Gemini API: {str(e)}\nPlease check your API key."
-        return
-
-    model_name = "gemini-2.0-flash" 
-    
-    query = (
-        f"Please analyze the news for {ticker} shares in order to understand the recent price performance. "
-        f"The stock has returned approximately {perf_ticker:.1%} over the past year, "
-        f"compared to {perf_index:.1%} for the broader market. "
-        f"Identify the key news events and factors that have contributed "
-        f"to this performance. Please source your answers when possible to the company or "
-        f"news outlets with some reference to the original news source. "
-        f"Focus on financial news and analysis. "
-        f"Please provide a concise summary of the key factors that have influenced the stock's performance. "
-        f"Include both positive and negative drivers."
+def get_news_stream(api_key, ticker, perf_ticker, perf_index):
+    client = genai.Client(
+        api_key=api_key,
     )
-    
-    contents_for_request = [
-        genai.Content( # Changed from types.Content
+    model = "gemini-2.0-flash"
+    contents = [
+        types.Content(
             role="user",
-            parts=[genai.Part.from_text(text=query)], # Changed from types.Part
+            parts=[
+                types.Part.from_text(text=f"""Please analyze the news for {ticker} shares in order to understand the recent price performance.
+The stock has returned approximately {perf_ticker:.1%} over the past year, 
+compared to {perf_index:.1%} for the broader market.
+Identify the key news events and factors that have contributed 
+to this performance. Please source your answers when possible to the company or 
+news outlets with some reference to the original news source. 
+Focus on financial news and analysis. 
+Please provide a concise summary of the key factors that have influenced the stock's performance. 
+Include both positive and negative drivers."""),
+            ],
         ),
     ]
-    
-    tools = [genai.Tool(google_search=genai.GoogleSearch())] # Changed from types.Tool and types.GoogleSearch
-    
-    system_instruction_text = """You are an AI assistant specialized in financial news analysis. Your primary task is to analyze news articles, financial reports, and market data to identify the key factors that have contributed to a specific stock's performance over a defined period. You should prioritize information that directly explains the stock's upward or downward movements. You should always source the original news source when possible.
+    tools = [
+        types.Tool(google_search=types.GoogleSearch()),
+    ]
+    generate_content_config = types.GenerateContentConfig(
+        tools=tools,
+        response_mime_type="text/plain",
+        system_instruction=[
+            types.Part.from_text(text="""You are an AI assistant specialized in financial news analysis. Your primary task is to analyze news articles, financial reports, and market data to identify the key factors that have contributed to a specific stock's performance over a defined period. You should prioritize information that directly explains the stock's upward or downward movements. You should always source the original news source when possible.
 
 **Your Core Function:**
 
@@ -54,7 +52,7 @@ def fetch_news_summary_stream(api_key, ticker, perf_ticker, perf_index):
 3.  **Justification Assessment:** Quantify the impact of each factor (if possible) on the stock price. Prioritize factors that can logically explain the magnitude and direction of the stock's performance.
 
 4.  **Summary Generation:** Produce a concise and well-structured summary that explains the stock's performance based on the identified causal factors. The summary should:
-    *   Begin with the overall stock performance (e.g., "+17% over the past year").
+    *   Begin with the overall stock performance (e.g., \"+17% over the past year\").
     *   Highlight the key positive drivers (with specific examples from the news).
     *   Acknowledge any counteracting factors or headwinds.
     *   Cite the news source for each piece of information.
@@ -70,49 +68,24 @@ def fetch_news_summary_stream(api_key, ticker, perf_ticker, perf_index):
 *   **Relevance:** Focus on information that is directly relevant to the stock's performance.
 *   **Conciseness:** Keep the summary concise and easy to understand.
 
-You should now await a specific request for a stock and period to analyze."""
-
-    generation_and_tool_config = genai.GenerateContentConfig( # Changed from types.GenerateContentConfig
-        tools=tools,
-        response_mime_type="text/plain",
-        system_instruction=[ 
-            genai.Part.from_text(text=system_instruction_text) # Changed from types.Part
-        ] 
+You should now await a specific request for a stock and period to analyze."""),
+        ],
     )
 
-    try:
-        model_instance = genai.GenerativeModel(model_name=model_name)
-        
-        response_chunks = model_instance.generate_content(
-            contents=contents_for_request,
-            generation_config=generation_and_tool_config,
-            stream=True
-        )
-        
-        summary = ""
-        for chunk in response_chunks:
-            try:
-                if hasattr(chunk, 'text') and chunk.text:
-                    summary += chunk.text
-                yield summary
-            except AttributeError:
-                continue
-            except Exception as e_chunk:
-                continue
+    def stream_chunks():
+        for chunk in client.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=generate_content_config,
+        ):
+            yield chunk.text
 
-    except google.api_core.exceptions.PermissionDenied as e:
-        yield f"Gemini API Permission Denied: {str(e)}\n\nPlease check your API key, ensure the Gemini API is enabled for your Google Cloud project, and that billing is active."
-    except google.api_core.exceptions.InvalidArgument as e:
-        yield f"Gemini API Invalid Argument: {str(e)}\nThis could be due to an incorrect model name ('{model_name}') or other request parameters. Please verify."
-    except google.api_core.exceptions.GoogleAPIError as e:
-        yield f"Gemini API Error: {str(e)}"
-    except Exception as e:
-        yield f"Error generating news summary: {str(e)}\n\nPlease check your API key, model name ('{model_name}'), and network connection."
+    return stream_chunks()  # Return the generator instead of calling st.write_stream here
 
 
 def main():
     st.title("News Summaries")
-    
+
     # Get ptf and tall from session state
     if 'ptf' in st.session_state:
         ptf = st.session_state.ptf
@@ -175,11 +148,13 @@ def main():
         elif selected_ticker:
             with st.spinner(f"Fetching news for {selected_ticker}..."):
                 st.subheader(f"News Summary for {selected_ticker}")
-                summary_placeholder = st.empty() 
-                displayed_summary = ""
-                for summary_chunk in fetch_news_summary_stream(api_key, selected_ticker, perf_ticker, perf_index):
-                    displayed_summary = summary_chunk 
-                    summary_placeholder.markdown(displayed_summary) 
+                stream = get_news_stream(
+                    api_key="AIzaSyCLiVBiLWYKH04qVhd8Dj45mmNaG-s8Bzc",
+                    ticker=selected_ticker, 
+                    perf_ticker=perf_ticker, 
+                    perf_index=perf_index
+                )
+                st.write_stream(stream)  # Now streaming is handled here
         else:
             st.error("Please select a stock first.")
 
