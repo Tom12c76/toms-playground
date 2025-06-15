@@ -1,6 +1,9 @@
 import streamlit as st
 import base64
 import os
+
+# To run this code you need to install the following dependencies:
+# pip install google-genai
 from google import genai
 from google.genai import types
 
