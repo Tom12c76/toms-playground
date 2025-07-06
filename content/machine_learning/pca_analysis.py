@@ -124,6 +124,8 @@ def plot_factor_loadings_clustermap(factor_loadings, num_components, explained_v
     )
     cluster_grid.figure.suptitle('SNS Clustermap', fontsize=16, y=0.98)
     st.pyplot(cluster_grid.figure)
+    return num_pc_for_clustermap
+
 
 def plot_3d_factor_loadings(factor_loadings):
     """Creates and displays a 3D scatter plot of factor loadings."""
@@ -177,7 +179,7 @@ def plot_3d_factor_loadings(factor_loadings):
     # Display the plot
     st.plotly_chart(fig, use_container_width=True)
 
-def plot_pc_time_series(pca, logret_scaled, logret):
+def plot_pc_time_series(pca, logret_scaled, logret, num_components):
     """Plots the time series of principal components."""
     st.subheader("Time Series of Principal Components")
 
@@ -189,28 +191,48 @@ def plot_pc_time_series(pca, logret_scaled, logret):
         columns=[f"PC{i+1}" for i in range(pca.n_components_)]
     )
 
-    # Add a multiselect for choosing which PCs to plot
-    default_pcs_to_plot = [f"PC{i+1}" for i in range(min(5, pca.n_components_))]
-    selected_pcs = st.multiselect(
-        "Select Principal Components to plot:",
-        options=pc_ts_df.columns.tolist(),
-        default=default_pcs_to_plot
-    )
+    if num_components > 0:
+        selected_pcs = [f"PC{i+1}" for i in range(num_components)]
+        
+        # Calculate cumulative sum and melt for facet plot
+        pc_ts_cumsum_df = pc_ts_df[selected_pcs].cumsum()
+        pc_ts_cumsum_long_df = pc_ts_cumsum_df.reset_index().melt(
+            id_vars='Date', 
+            var_name='Principal Component', 
+            value_name='Cumulative Log Return'
+        )
 
-    if selected_pcs:
-        # Plot the cumulative sum of the selected PC time series
+        # Plot the cumulative sum of the selected PC time series using a trellis chart
         fig_ts = px.line(
-            pc_ts_df[selected_pcs].cumsum(),
+            pc_ts_cumsum_long_df,
+            x='Date',
+            y='Cumulative Log Return',
+            facet_col='Principal Component',
+            facet_col_wrap=3,
             title="Cumulative Performance of Selected Principal Components"
         )
+        
+        # Update the title for each facet
+        fig_ts.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+        # Remove all axis titles
+        fig_ts.update_xaxes(title_text=None)
+        fig_ts.update_yaxes(title_text=None)
+
+        # resize the figure based on the number of components
+        num_rows = (num_components - 1) // 3 + 1
         fig_ts.update_layout(
-            xaxis_title="Date",
-            yaxis_title="Cumulative Log Return",
-            legend_title="Principal Component"
+            height=200 * num_rows + 50,
+            showlegend=False,
+            xaxis_title=None, # Remove all individual x-axis titles
+            yaxis_title=None  # Remove all individual y-axis titles
         )
+
         st.plotly_chart(fig_ts, use_container_width=True)
     else:
         st.info("Select one or more Principal Components to visualize their performance over time.")
+
+
 
 def main():
     st.title("PCA Analysis")
@@ -234,8 +256,13 @@ def main():
 
     num_components_for_80_var, explained_variance_df = plot_explained_variance(pca)
 
-    plot_factor_loadings_clustermap(factor_loadings, num_components_for_80_var, explained_variance_df)
+    num_components_from_clustermap = plot_factor_loadings_clustermap(factor_loadings, num_components_for_80_var, explained_variance_df)
 
     plot_3d_factor_loadings(factor_loadings)
 
-    plot_pc_time_series(pca, logret_scaled, logret)
+    plot_pc_time_series(pca, logret_scaled, logret, num_components_from_clustermap)
+    num_components_from_clustermap = plot_factor_loadings_clustermap(factor_loadings, num_components_for_80_var, explained_variance_df)
+
+    plot_3d_factor_loadings(factor_loadings)
+
+    plot_pc_time_series(pca, logret_scaled, logret, num_components_from_clustermap)
