@@ -40,9 +40,10 @@ with st.sidebar:
             "Getting started",
             "Portfolio hacks",
             "Machine learning",
-            "AI for reporting"
+            "AI for reporting",
+            "Refinitiv API"
         ],
-        icons=['house', 'gear', 'graph-up', 'robot', 'file-earmark-text'],
+        icons=['house', 'gear', 'graph-up', 'robot', 'file-earmark-text', 'cloud-download'],
         menu_icon="cast",
         default_index=0,
         styles={
@@ -97,8 +98,20 @@ with st.sidebar:
     elif selected == "AI for reporting":
         sub_selected = option_menu(
             menu_title=None,
-            options=["News Summaries", "Autogen HTML reports", "Talk to your portfolio"],
-            icons=['file-earmark-text', 'chat-dots', 'bi-megaphone'],
+            options=["News Summaries", "Autogen HTML reports", "Talk to your portfolio", "Fund Profile Generator"],
+            icons=['file-earmark-text', 'chat-dots', 'bi-megaphone', 'bank'],
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important"},
+                "nav-link": {"font-size": "14px", "text-align": "left", "margin": "0px"}
+            }
+        )
+    elif selected == "Refinitiv API":
+        sub_selected = option_menu(
+            menu_title=None,
+            options=["get_history", "options"],
+            icons=['clock-history', 'list-ul'],
             menu_icon="cast",
             default_index=0,
             styles={
@@ -135,6 +148,11 @@ pages = {
         "News Summaries": "content.ai_for_reporting.news_summaries",
         "Autogen HTML reports": "content.ai_for_reporting.autogen_html_reports",
         "Talk to your portfolio": "content.ai_for_reporting.talk_to_your_portfolio",
+        "Fund Profile Generator": "content.ai_for_reporting.fund_profile_generator"
+    },
+    "Refinitiv API": {
+        "get_history": "content.refinitiv_api.get_history",
+        "options": "content.refinitiv_api.options"
     }
 }
 

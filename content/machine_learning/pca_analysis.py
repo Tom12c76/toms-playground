@@ -261,8 +261,3 @@ def main():
     plot_3d_factor_loadings(factor_loadings)
 
     plot_pc_time_series(pca, logret_scaled, logret, num_components_from_clustermap)
-    num_components_from_clustermap = plot_factor_loadings_clustermap(factor_loadings, num_components_for_80_var, explained_variance_df)
-
-    plot_3d_factor_loadings(factor_loadings)
-
-    plot_pc_time_series(pca, logret_scaled, logret, num_components_from_clustermap)
