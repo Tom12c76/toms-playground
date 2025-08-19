@@ -107,7 +107,8 @@ def plot_factor_loadings_clustermap(factor_loadings, num_components, explained_v
         min_value=1,
         max_value=len(factor_loadings.columns),
         value=num_components, # default to number of components that explain 80% of variance
-        step=1
+        step=1,
+        key="clustermap_slider"
     )
     cumulative_variance_selected = explained_variance['Cumulative Explained Variance'].iloc[num_pc_for_clustermap-1]
     st.write(f"The selected {num_pc_for_clustermap} components explain {cumulative_variance_selected:.1%} of the variance.")
@@ -256,11 +257,6 @@ def main():
 
     num_components_for_80_var, explained_variance_df = plot_explained_variance(pca)
 
-    num_components_from_clustermap = plot_factor_loadings_clustermap(factor_loadings, num_components_for_80_var, explained_variance_df)
-
-    plot_3d_factor_loadings(factor_loadings)
-
-    plot_pc_time_series(pca, logret_scaled, logret, num_components_from_clustermap)
     num_components_from_clustermap = plot_factor_loadings_clustermap(factor_loadings, num_components_for_80_var, explained_variance_df)
 
     plot_3d_factor_loadings(factor_loadings)
