@@ -88,7 +88,20 @@ You should now await a specific request for a stock and period to analyze."""),
 
 def main():
     st.title("News Summaries")
-
+    
+    # Remove hardcoded API key and user input
+    try:
+        api_key = st.secrets["google"]["gemini_api_key"]
+    except KeyError:
+        st.error("Google Gemini API key not found in secrets")
+        return
+    
+    st.subheader("Financial News Summarization")
+    st.write("""
+    This tool allows you to summarize financial news articles for stocks in your portfolio.
+    Select an industry group and a stock to get concise summaries of key financial information.
+    """)
+    
     # Get ptf and tall from session state
     if 'ptf' in st.session_state:
         ptf = st.session_state.ptf
@@ -101,19 +114,6 @@ def main():
     else:
         st.warning("No calculated data found in session state. Please go back and calculate portfolio data first.")
         return
-    
-    # Add API key input to sidebar
-    with st.sidebar:
-        st.subheader("Gemini API Key")
-        api_key = st.text_input("Enter your Gemini API Key", type="password")
-        st.info("Your API key is required to fetch news summaries using Google's Gemini model.")
-    
-    st.subheader("Financial News Summarization")
-    st.info("AIzaSyCLiVBiLWYKH04qVhd8Dj45mmNaG-s8Bzc")
-    st.write("""
-    This tool allows you to summarize financial news articles for stocks in your portfolio.
-    Select an industry group and a stock to get concise summaries of key financial information.
-    """)
     
     # Get all available sectors from the portfolio data
     available_sectors = sorted(ptf['Sector'].unique().tolist())
