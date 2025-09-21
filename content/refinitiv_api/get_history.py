@@ -22,7 +22,7 @@ def main():
     with col1:
         instruments = st.multiselect(
             "Instrument RICs",
-            options=["MSFT.O", "ROG.S", "VOD.L", "SAP.GY", "CRDI.MI"],
+            options=["MSFT.O", "ROG.S", "VOD.L", "SAPG.DE", "CRDI.MI"],
             default=["MSFT.O", "ROG.S", "VOD.L"],
             help="Select one or more RICs for comparison"
         )
@@ -84,7 +84,8 @@ def main():
                             x=normalized_prices.index,
                             y=normalized_prices[instrument],
                             mode='lines',
-                            name=instrument
+                            name=instrument,
+                            connectgaps=True  # Connect gaps in the data
                         ))
                     fig_price.update_layout(
                         title="Normalized Price Performance (Rebased to 100)",
@@ -142,24 +143,29 @@ def main():
             except Exception as e:
                 st.error(f"Could not retrieve dividend data. Error: {e}")
 
-    # --- Documentation ---
-    st.header("Documentation")
+    # --- Documentation & Educational Goals ---
+    st.header("About this Tutorial")
     st.markdown(f"""
-    This page retrieves historical price and dividend data for a selection of equities using the Refinitiv Data API. All data is requested in **{currency}**.
+    This application serves as an educational tutorial and a repository of best practices for fetching historical financial data using the Refinitiv Data API.
 
-    ### 1. Price History
-    - Fetches the daily closing prices (`TR.PriceClose`) for the selected instruments.
-    - Displays a chart of the normalized price performance, rebased to 100 at the start date for easy comparison.
+    **Primary Mission:** To be an explainer with descriptive text, code snippets, and clear visualizations that demonstrate how to calculate performance for single stocks and portfolios.
 
-    ### 2. Dividend History
-    - Fetches the dividend ex-dividend dates (`TR.DivExDate`) and unadjusted gross dividend amounts (`TR.DivUnadjustedGross`).
-    - Displays the raw dividend data in a table.
+    ### Educational Goals
+    - **Best Practices:** Demonstrates the correct and most efficient ways to query time-series data (`get_history`) vs. event-based data (`get_data`).
+    - **Data Handling:** Showcases common data manipulation techniques using `pandas`, such as normalization, pivoting, and aligning datasets.
+    - **Financial Concepts:** Teaches concepts like price performance normalization and the importance of aligning dividend data with price data for total return calculations.
+    - **Reproducibility:** The **Sample Code** section below is dynamically generated based on your selections, allowing you to reproduce these results in your own code.
+
+    ### Data Overview
+    - **Price History:** Fetches daily closing prices (`TR.PriceClose`) and normalizes them to 100 for easy comparison.
+    - **Dividend History:** Fetches ex-dividend dates (`TR.DivExDate`) and gross dividend amounts (`TR.DivUnadjustedGross`).
+    - All data is requested in **{currency}**.
 
     ### Example Tickers:
     - **MSFT.O**: Microsoft Corp. (NASDAQ)
     - **ROG.S**: Roche Holding AG (SIX Swiss Exchange)
     - **VOD.L**: Vodafone Group plc (London Stock Exchange)
-    - **SAP.GY**: SAP SE (Deutsche Börse Xetra)
+    - **SAPG.DE**: SAP SE (Deutsche Börse Xetra)
     - **CRDI.MI**: UniCredit S.p.A. (Borsa Italiana)
     """)
     
