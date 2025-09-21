@@ -2,8 +2,11 @@
 
 ### > Display Language
 
-This is the app you get when you run `streamlit hello`, extracted as its own app.
+This is a Streamlit application for financial analysis and portfolio management.
 
-Edit [Hello.py](./Hello.py) to customize this app to your heart's desire. ❤️
+To run the app, use the following command:
+```bash
+streamlit run app.py
+```
 
-Check it out on [Streamlit Community Cloud](https://st-hello-app.streamlit.app/)
+Edit [app.py](app.py) to customize this app to your heart's desire. ❤️
