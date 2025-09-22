@@ -1,7 +1,26 @@
 import streamlit as st
 import pandas as pd
 import time
+import requests
 from typing import Dict, List
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+try:
+    from streamlit_secrets_helper import get_google_api_key, check_secrets_status, display_secrets_help
+except ImportError:
+    st.warning("⚠️ streamlit_secrets_helper not found. Some features may be limited.")
+    
+    def get_google_api_key():
+        return None
+    
+    def check_secrets_status():
+        return {}
+    
+    def display_secrets_help():
+        pass
 
 # Google Gemini AI imports
 # To install: pip install google-genai
@@ -9,27 +28,96 @@ from google import genai
 from google.genai import types
 
 def get_fund_data():
-    """Returns the list of funds with their ISIN codes."""
+    """Returns the list of funds with their ISIN codes and optional URLs."""
     return [
-        {"name": "MSIF Global Brands Fund A USD Acc", "isin": "LU0119620416"},
-        {"name": "M&G (Lux) European Strategic Value EUR A Acc", "isin": "LU1670707527"},
-        {"name": "Fidelity Funds - Global Technology A-ACC-EUR", "isin": "LU1213836080"},
-        {"name": "Nordea 1 - Global Climate and Environment BP EUR", "isin": "LU0348926287"},
-        {"name": "DWS Invest CROCI Japan JPY LC", "isin": "LU1769942159"},
-        {"name": "Allianz Thematica A (EUR)", "isin": "LU1479563717"},
-        {"name": "Capital Group New Perspective (LUX) Bh-EUR", "isin": "LU1295552621"},
-        {"name": "Janus Henderson Horizon Gl Tech Ldrs A2 EUR", "isin": "LU0572952280"},
-        {"name": "DWS Invest Global Infrastructure LC", "isin": "LU0329760770"},
-        {"name": "SPDR FTSE UK All Share UCITS ETF Acc", "isin": "IE00B7452L46"}
+        {
+            "name": "MSIF Global Brands Fund A USD Acc", 
+            "isin": "LU0119620416",
+            "urls": [
+                "https://www.morganstanley.com/im/publication/insights/investment-insights/ii_globalbrandsfund_us.pdf",
+                "https://www.morningstar.com/funds/xlis/msif00000g/quote"
+            ]
+        },
+        {
+            "name": "M&G (Lux) European Strategic Value EUR A Acc", 
+            "isin": "LU1670707527",
+            "urls": [
+                "https://www.mandg.com/funds/m-and-g-lux-european-strategic-value-fund"
+            ]
+        },
+        {
+            "name": "Fidelity Funds - Global Technology A-ACC-EUR", 
+            "isin": "LU1213836080",
+            "urls": [
+                "https://www.fidelity.lu/funds/factsheet/LU1213836080"
+            ]
+        },
+        {"name": "Nordea 1 - Global Climate and Environment BP EUR", "isin": "LU0348926287", "urls": []},
+        {"name": "DWS Invest CROCI Japan JPY LC", "isin": "LU1769942159", "urls": []},
+        {"name": "Allianz Thematica A (EUR)", "isin": "LU1479563717", "urls": []},
+        {"name": "Capital Group New Perspective (LUX) Bh-EUR", "isin": "LU1295552621", "urls": []},
+        {"name": "Janus Henderson Horizon Gl Tech Ldrs A2 EUR", "isin": "LU0572952280", "urls": []},
+        {"name": "DWS Invest Global Infrastructure LC", "isin": "LU0329760770", "urls": []},
+        {"name": "SPDR FTSE UK All Share UCITS ETF Acc", "isin": "IE00B7452L46", "urls": []}
     ]
 
-def create_fund_analysis_prompt(fund_name: str, isin: str) -> str:
-    """Creates a detailed prompt for Perplexity to analyze a UCITS fund."""
+def fetch_url_content(url: str) -> str:
+    """
+    Fetches content from a given URL for fund analysis.
+    This is a custom tool that can be used by the AI.
+    """
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.text[:5000]  # Limit to first 5000 characters
+    except Exception as e:
+        return f"Error fetching URL {url}: {str(e)}"
+
+def create_url_fetcher_function():
+    """Creates a function declaration for URL fetching tool."""
+    return types.FunctionDeclaration(
+        name="fetch_url_content",
+        description="Fetches content from a given URL to analyze fund information from official sources",
+        parameters=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "url": types.Schema(
+                    type=types.Type.STRING,
+                    description="The URL to fetch content from (e.g., fund factsheets, official documents)"
+                )
+            },
+            required=["url"]
+        )
+    )
+
+def create_fund_analysis_prompt(fund_name: str, isin: str, urls: List[str] = None) -> str:
+    """Creates a detailed prompt for Gemini to analyze a UCITS fund."""
+    
+    url_section = ""
+    if urls and len(urls) > 0:
+        url_section = f"""
+**Specific URLs to analyze (use the fetch_url_content tool):**
+{chr(10).join([f"- {url}" for url in urls])}
+"""
+    else:
+        url_section = f"""
+**Suggested URLs to analyze (use the fetch_url_content tool):**
+- Fund factsheet: Search for official factsheet or KIID document
+- Morningstar page: https://www.morningstar.com (search for ISIN: {isin})
+- Fund manager website: Search for official fund page
+- Regulatory filings: Look for official prospectus or annual reports
+"""
+    
     prompt = f"""
 Please provide a comprehensive analysis of the following UCITS investment fund:
 
 Fund Name: {fund_name}
 ISIN: {isin}
+
+{url_section}
 
 Please structure your response as a detailed fund profile including the following sections:
 
@@ -77,14 +165,25 @@ Please provide factual, up-to-date information and clearly indicate if any speci
 """
     return prompt
 
-def call_gemini_api(fund_name: str, isin: str, api_key: str, model: str = "gemini-2.0-flash") -> str:
+def call_gemini_api(fund_name: str, isin: str, api_key: str, model: str = "gemini-2.0-flash", enabled_tools: List[str] = None, urls: List[str] = None) -> str:
     """
     Calls Google Gemini API to analyze a UCITS fund.
+    
+    Args:
+        fund_name: Name of the fund
+        isin: ISIN code of the fund
+        api_key: Google Gemini API key
+        model: Model to use for analysis
+        enabled_tools: List of enabled tools (Google Search, Code Execution, URL Fetcher)
+        urls: List of specific URLs to analyze
     """
+    if enabled_tools is None:
+        enabled_tools = ["Google Search"]
+        
     try:
         client = genai.Client(api_key=api_key)
         
-        prompt = create_fund_analysis_prompt(fund_name, isin)
+        prompt = create_fund_analysis_prompt(fund_name, isin, urls)
         
         contents = [
             types.Content(
@@ -95,9 +194,14 @@ def call_gemini_api(fund_name: str, isin: str, api_key: str, model: str = "gemin
             ),
         ]
         
-        tools = [
-            types.Tool(google_search=types.GoogleSearch()),
-        ]
+        # Build tools list based on user selection
+        tools = []
+        if "Google Search" in enabled_tools:
+            tools.append(types.Tool(google_search=types.GoogleSearch()))
+        if "Code Execution" in enabled_tools:
+            tools.append(types.Tool(code_execution=types.CodeExecution()))
+        if "URL Fetcher" in enabled_tools:
+            tools.append(types.Tool(function_declarations=[create_url_fetcher_function()]))
         
         generate_content_config = types.GenerateContentConfig(
             tools=tools,
@@ -390,17 +494,27 @@ def main():
         1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
         2. Sign in with your Google account
         3. Click "Create API Key"
-        4. Copy the API key and paste it below
+        4. Copy the API key and paste it below **OR** add it to `.streamlit/secrets.toml`
         
         **Note**: Google Gemini offers free tier usage with rate limits.
         """)
         
-        api_key = st.text_input(
-            "Google Gemini API Key",
-            type="password",
-            help="Enter your Google Gemini API key for live analysis",
-            placeholder="AIzaSy..."
-        )
+        # Try to get API key from secrets first, then allow manual input
+        secrets_api_key = get_google_api_key()
+        
+        if secrets_api_key:
+            st.success("✅ Google API key loaded from secrets.toml")
+            api_key = secrets_api_key
+        else:
+            api_key = st.text_input(
+                "Google Gemini API Key",
+                type="password",
+                help="Enter your Google Gemini API key for live analysis, or configure in .streamlit/secrets.toml",
+                placeholder="AIzaSy... (or configure in secrets.toml)"
+            )
+            
+            if not api_key:
+                st.info("💡 **Tip**: Configure your API key in `.streamlit/secrets.toml` for automatic loading.")
         
         model_choice = st.selectbox(
             "Model Selection",
@@ -413,11 +527,54 @@ def main():
             help="Choose the Google Gemini model for analysis"
         )
         
+        st.markdown("### 🛠️ Tool Configuration")
+        tool_options = st.multiselect(
+            "Select Tools for AI Analysis",
+            options=[
+                "Google Search",
+                "Code Execution",
+                "URL Fetcher"
+            ],
+            default=["Google Search"],
+            help="Choose which tools the AI can use during analysis"
+        )
+        
         use_demo = st.checkbox(
             "Use Demo Mode", 
             value=True,
             help="Enable demo mode with sample responses (disable for live API calls)"
         )
+        
+        st.markdown("### 🔗 Custom URLs")
+        custom_urls = st.text_area(
+            "Additional URLs to analyze (one per line)",
+            placeholder="https://example.com/fund-factsheet.pdf\nhttps://morningstar.com/funds/...\nhttps://fundmanager.com/documents/...",
+            help="Enter specific URLs you want the AI to fetch and analyze. One URL per line.",
+            height=100
+        )
+        
+        # Display secrets status
+        st.markdown("### 🔐 Secrets Status")
+        status = check_secrets_status()
+        
+        if status.get('google_gemini', False):
+            st.write("✅ Google Gemini API")
+        else:
+            st.write("❌ Google Gemini API (not configured)")
+            
+        if status.get('refinitiv_data', False):
+            st.write("✅ Refinitiv Data API")
+        else:
+            st.write("❌ Refinitiv Data API (not configured)")
+            
+        if status.get('refinitiv_rdp', False):
+            st.write("✅ Refinitiv RDP API")
+        else:
+            st.write("❌ Refinitiv RDP API (not configured)")
+        
+        # Help section
+        if st.button("📖 Show Secrets Configuration Help"):
+            display_secrets_help()
     
     # Analysis execution
     if analysis_mode == "Single Fund":
@@ -425,6 +582,12 @@ def main():
         
         if st.button("Generate Fund Profile", type="primary"):
             fund_info = funds[selected_fund]
+            
+            # Combine fund URLs with custom URLs
+            fund_urls = fund_info.get('urls', [])
+            if custom_urls.strip():
+                additional_urls = [url.strip() for url in custom_urls.strip().split('\n') if url.strip()]
+                fund_urls.extend(additional_urls)
             
             with st.spinner(f"Analyzing {fund_info['name']}..."):
                 if use_demo:
@@ -438,7 +601,7 @@ def main():
                         return
                     
                     try:
-                        profile = call_gemini_api(fund_info['name'], fund_info['isin'], api_key, model_choice)
+                        profile = call_gemini_api(fund_info['name'], fund_info['isin'], api_key, model_choice, tool_options)
                     except Exception as e:
                         st.error(f"Error calling Gemini API: {str(e)}")
                         return
@@ -474,7 +637,7 @@ def main():
                         st.error("Please provide a Google Gemini API key for live analysis.")
                         break
                     try:
-                        profile = call_gemini_api(fund_info['name'], fund_info['isin'], api_key, model_choice)
+                        profile = call_gemini_api(fund_info['name'], fund_info['isin'], api_key, model_choice, tool_options)
                     except Exception as e:
                         st.error(f"Error calling Gemini API: {str(e)}")
                         break
@@ -504,7 +667,8 @@ def main():
                                 st.error("Please provide a Google Gemini API key for live analysis.")
                                 break
                             try:
-                                profile = call_gemini_api(fund_info['name'], fund_info['isin'], api_key, model_choice)
+                                fund_urls = fund_info.get('urls', [])
+                                profile = call_gemini_api(fund_info['name'], fund_info['isin'], api_key, model_choice, tool_options, fund_urls)
                             except Exception as e:
                                 st.error(f"Error calling Gemini API: {str(e)}")
                                 break
@@ -539,9 +703,30 @@ def main():
         ### How it works:
         
         1. **Prompt Engineering**: Carefully crafted prompts ensure comprehensive analysis
-        2. **Google Gemini Integration**: Uses Google's Gemini models with web search capabilities
-        3. **Structured Output**: Responses follow a consistent format for easy comparison
-        4. **Error Handling**: Robust error handling for API failures or rate limits
+        2. **Google Gemini Integration**: Uses Google's Gemini models with multiple tool capabilities
+        3. **Tool Selection**: Users can enable/disable different AI tools:
+           - **Google Search**: Web search for current fund information
+           - **Code Execution**: Run calculations and data analysis
+           - **URL Fetcher**: Fetch content from specific URLs (factsheets, etc.)
+        4. **Structured Output**: Responses follow a consistent format for easy comparison
+        5. **Error Handling**: Robust error handling for API failures or rate limits
+        
+        ### Available Tools:
+        
+        **🔍 Google Search Tool**
+        - Searches the web for fund information
+        - Accesses current market data and news
+        - Finds official fund documents
+        
+        **💻 Code Execution Tool**
+        - Performs calculations and data analysis
+        - Processes numerical data
+        - Creates charts or visualizations
+        
+        **🌐 URL Fetcher Tool**
+        - Fetches content from specific URLs
+        - Accesses fund factsheets and prospectuses
+        - Retrieves official regulatory filings
         
         ### API Integration:
         
@@ -549,23 +734,22 @@ def main():
         from google import genai
         from google.genai import types
         
-        def call_gemini_api(fund_name, isin, api_key):
+        def call_gemini_api(fund_name, isin, api_key, enabled_tools):
             client = genai.Client(api_key=api_key)
-            model = "gemini-2.0-flash"
             
-            contents = [
-                types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=prompt)],
-                ),
-            ]
-            
-            tools = [types.Tool(google_search=types.GoogleSearch())]
+            # Configure tools based on user selection
+            tools = []
+            if "Google Search" in enabled_tools:
+                tools.append(types.Tool(google_search=types.GoogleSearch()))
+            if "Code Execution" in enabled_tools:
+                tools.append(types.Tool(code_execution=types.CodeExecution()))
+            if "URL Fetcher" in enabled_tools:
+                tools.append(types.Tool(function_declarations=[url_fetcher_function]))
             
             response = client.models.generate_content(
                 model=model,
                 contents=contents,
-                config=generate_content_config,
+                config=types.GenerateContentConfig(tools=tools),
             )
             
             return response.text
@@ -577,9 +761,10 @@ def main():
         - ✅ Fund comparison
         - ✅ Demo mode
         - ✅ Configurable models
+        - ✅ Multiple AI tools
         - ✅ Progress tracking
         - ✅ Error handling
-        - ✅ Web search integration
+        - ✅ Custom URL fetching
         """)
     
     # Footer
