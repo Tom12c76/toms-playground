@@ -14,3 +14,5 @@ build/
 
 # Data folder
 data/
+
+.streamlit/secrets.toml

@@ -442,6 +442,15 @@ def display_fund_profile(fund_info: Dict, profile: str):
 
 def main():
     st.title("🤖 AI Fund Profile Generator")
+    
+    # Get API key from secrets instead of user input
+    try:
+        api_key = st.secrets["google"]["gemini_api_key"]
+        st.success("✅ API key loaded from secrets")
+    except KeyError:
+        st.error("❌ Google Gemini API key not found in secrets. Please configure secrets.toml")
+        st.stop()
+    
     st.markdown("### *Powered by Google Gemini AI*")
     
     st.info("""
@@ -499,6 +508,7 @@ def main():
         **Note**: Google Gemini offers free tier usage with rate limits.
         """)
         
+<<<<<<< HEAD
         # Try to get API key from secrets first, then allow manual input
         secrets_api_key = get_google_api_key()
         
@@ -516,6 +526,8 @@ def main():
             if not api_key:
                 st.info("💡 **Tip**: Configure your API key in `.streamlit/secrets.toml` for automatic loading.")
         
+=======
+>>>>>>> 60d771b7594d6dec796293dc4639955168491a6c
         model_choice = st.selectbox(
             "Model Selection",
             options=[

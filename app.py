@@ -120,6 +120,22 @@ with st.sidebar:
             }
         )
 
+# Add to your navigation menu
+with st.sidebar:
+    if st.checkbox("🔐 Admin Mode", help="For credential management"):
+        st.subheader("Secrets Status")
+        
+        # Check which secrets are configured
+        secrets_status = {}
+        try:
+            secrets_status["Google Gemini"] = "✅" if "google" in st.secrets else "❌"
+            secrets_status["Refinitiv"] = "✅" if "refinitiv" in st.secrets else "❌"
+        except:
+            secrets_status = {"Error": "❌ No secrets file found"}
+        
+        for service, status in secrets_status.items():
+            st.write(f"{service}: {status}")
+
 # Define the page structure
 pages = {
     "Welcome to my playground": "content.welcome",
